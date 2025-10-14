@@ -1,0 +1,10 @@
+sdk-version: 2.7.6
+name: payment-demo
+version: 0.0.1
+source: .
+dependencies:
+  - daml-prim
+  - daml-stdlib
+build-options:
+  - --target=1.15
+

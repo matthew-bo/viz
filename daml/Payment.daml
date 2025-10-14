@@ -1,0 +1,50 @@
+module Payment where
+
+-- PaymentRequest: Initial proposal by sender
+template PaymentRequest
+  with
+    sender: Party
+    receiver: Party
+    amount: Decimal
+    currency: Text
+    description: Text
+    submittedAt: Time
+  where
+    signatory sender      -- Only sender signs initially
+    observer receiver     -- Receiver can see but hasn't signed
+    
+    -- Receiver can accept the payment request
+    choice Accept : ContractId Payment
+      controller receiver  -- Only receiver can exercise this choice
+      do
+        now <- getTime
+        create Payment with
+          sender = sender
+          receiver = receiver
+          amount = amount
+          currency = currency
+          description = description
+          submittedAt = submittedAt
+          committedAt = now
+    
+    -- Receiver can reject the payment request
+    choice Reject : ()
+      controller receiver
+      do
+        return ()  -- Simply archive the request
+
+-- Payment: Final committed contract with both signatures
+template Payment
+  with
+    sender: Party
+    receiver: Party
+    amount: Decimal
+    currency: Text
+    description: Text
+    submittedAt: Time    -- When request was created
+    committedAt: Time    -- When receiver accepted
+  where
+    signatory sender, receiver  -- Both parties have signed
+    
+    -- No choices needed - this is final state
+

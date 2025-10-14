@@ -36,8 +36,8 @@
 - [ ] **Phase 6:** Deployment & Demo Prep (0.5 days)
 
 **Current Phase:** Phase 2 - Daml Smart Contracts  
-**Current Step:** 2.1 (Awaiting Daml SDK Installation)  
-**Blockers:** Daml SDK 2.7.6 needs to be installed
+**Current Step:** 2.1 - Creating Daml Project Configuration  
+**Blockers:** None - Ready to proceed!
 
 **Session 1 Achievements:**
 - ✅ Docker & Node.js environment verified
@@ -76,13 +76,14 @@
   - **Validation:** Run `node -e "console.log('Node OK')"`
   - **README Ref:** Lines 168-169
 
-- [ ] **Install Daml SDK 2.7.6** ⚠️ UPDATED VERSION
-  - **Windows:** Download from https://github.com/digital-asset/daml/releases/tag/v2.7.6
+- [X] **Install Daml SDK 2.7.6** ✅ VERIFIED
+  - **Installed Version:** 2.7.6 (default SDK version for new projects)
+  - **Windows:** Downloaded from https://github.com/digital-asset/daml/releases/tag/v2.7.6
   - **Alternative:** Run: `curl -sSL https://get.daml.com/ | sh -s 2.7.6`
-  - Verify: `daml version` (should show 2.7.6)
+  - Verified: `daml version` ✅
   - **Validation:** Run `daml --help`
   - **README Ref:** Lines 170-173
-  - **Note:** Free, no license required. MUST match Canton version (2.7.6)
+  - **Note:** Free, no license required. Matches Canton version (2.7.6) perfectly!
 
 - [X] **Verify Available Resources** ✅
   - Check disk space: 5GB free minimum
