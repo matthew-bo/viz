@@ -1,10 +1,16 @@
-// File: infrastructure/canton/scripts/bootstrap-domain.sc
+// Bootstrap the domain
+println("🚀 Bootstrapping domain 'mydomain'...")
 
-println("Bootstrapping domain 'mydomain'...")
+try {
+  mydomain.setup.bootstrap_domain()
+  println("✅ Domain 'mydomain' bootstrapped successfully")
+} catch {
+  case e: Exception =>
+    println(s"⚠️ Bootstrap may have already occurred: ${e.getMessage}")
+}
 
-// Initialize domain with empty parameters (uses defaults)
-mydomain.setup.bootstrap_domain(Seq())
+// Verify domain is ready
+val status = mydomain.health.status()
+println(s"📊 Domain status: $status")
 
-println("Domain 'mydomain' successfully bootstrapped!")
-println(s"Domain ID: ${mydomain.id}")
-
+println("✅ Synchronizer initialization complete")

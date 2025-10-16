@@ -1,61 +1,70 @@
 version: '3.8'
 
 services:
-  # Synchronizer (Domain)
   synchronizer:
-    image: digitalasset/canton-open-source:latest  # Currently 2.7.6
+    image: digitalasset/canton-open-source:latest
     container_name: canton-synchronizer
     ports:
-      - "5018:5018"  # Public API
-      - "5019:5019"  # Admin API
+      - "5018:5018"
+      - "5019:5019"
     volumes:
       - ./canton/synchronizer.conf:/canton/synchronizer.conf:ro
-      - ./canton/scripts:/canton/scripts:ro
-    command: daemon --config /canton/synchronizer.conf --log-level-root=INFO
+    command: daemon --config /canton/synchronizer.conf
     restart: unless-stopped
+    networks:
+      - canton-network
 
-  # Participant 1 (TechBank)
   participant1:
-    image: digitalasset/canton-open-source:latest  # Currently 2.7.6
+    image: digitalasset/canton-open-source:latest
     container_name: canton-participant1
     ports:
-      - "5011:5011"  # Ledger API
-      - "5012:5012"  # Admin API
+      - "5011:5011"
+      - "5012:5012"
+      - "7011:7011"
     volumes:
       - ./canton/participant1.conf:/canton/participant1.conf:ro
-      - ./canton/scripts:/canton/scripts:ro
-    command: daemon --config /canton/participant1.conf --log-level-root=INFO
+      - ../daml/.daml/dist/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
+    command: daemon --config /canton/participant1.conf
+    restart: unless-stopped
+    networks:
+      - canton-network
     depends_on:
       - synchronizer
-    restart: unless-stopped
 
-  # Participant 2 (GlobalCorp)
   participant2:
-    image: digitalasset/canton-open-source:latest  # Currently 2.7.6
+    image: digitalasset/canton-open-source:latest
     container_name: canton-participant2
     ports:
-      - "5021:5021"  # Ledger API
-      - "5022:5022"  # Admin API
+      - "5021:5021"
+      - "5022:5022"
+      - "7021:7021"
     volumes:
       - ./canton/participant2.conf:/canton/participant2.conf:ro
-      - ./canton/scripts:/canton/scripts:ro
-    command: daemon --config /canton/participant2.conf --log-level-root=INFO
+      - ../daml/.daml/dist/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
+    command: daemon --config /canton/participant2.conf
+    restart: unless-stopped
+    networks:
+      - canton-network
     depends_on:
       - synchronizer
-    restart: unless-stopped
 
-  # Participant 3 (RetailFinance)
   participant3:
-    image: digitalasset/canton-open-source:latest  # Currently 2.7.6
+    image: digitalasset/canton-open-source:latest
     container_name: canton-participant3
     ports:
-      - "5031:5031"  # Ledger API
-      - "5032:5032"  # Admin API
+      - "5031:5031"
+      - "5032:5032"
+      - "7031:7031"
     volumes:
       - ./canton/participant3.conf:/canton/participant3.conf:ro
-      - ./canton/scripts:/canton/scripts:ro
-    command: daemon --config /canton/participant3.conf --log-level-root=INFO
+      - ../daml/.daml/dist/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
+    command: daemon --config /canton/participant3.conf
+    restart: unless-stopped
+    networks:
+      - canton-network
     depends_on:
       - synchronizer
-    restart: unless-stopped
 
+networks:
+  canton-network:
+    driver: bridge

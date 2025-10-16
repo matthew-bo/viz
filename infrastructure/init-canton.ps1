@@ -93,7 +93,7 @@ Write-Host "`n==========================================" -ForegroundColor Cyan
 Write-Host "✓ Initial Setup Complete!" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "1. Build Daml contracts: cd daml && daml build"
+Write-Host "1. Build Daml contracts: cd daml, then daml build"
 Write-Host "2. Run DAR upload separately after building contracts"
 Write-Host "3. Copy party IDs to backend/.env"
 Write-Host "==========================================" -ForegroundColor Cyan

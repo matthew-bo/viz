@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Synchronizer (Domain)
+  synchronizer:
+    image: digitalasset/canton-open-source:latest  # Currently 2.7.6
+    container_name: canton-synchronizer
+    ports:
+      - "5018:5018"  # Public API
+      - "5019:5019"  # Admin API
+    volumes:
+      - ./canton/synchronizer.conf:/canton/synchronizer.conf:ro
+      - ./canton/scripts:/canton/scripts:ro
+    command: daemon --config /canton/synchronizer.conf --log-level-root=INFO
+    restart: unless-stopped
+
+  # Participant 1 (TechBank)
+  participant1:
+    image: digitalasset/canton-open-source:latest  # Currently 2.7.6
+    container_name: canton-participant1
+    ports:
+      - "5011:5011"  # Ledger API
+      - "5012:5012"  # Admin API
+    volumes:
+      - ./canton/participant1.conf:/canton/participant1.conf:ro
+      - ./canton/scripts:/canton/scripts:ro
+    command: daemon --config /canton/participant1.conf --log-level-root=INFO
+    depends_on:
+      - synchronizer
+    restart: unless-stopped
+
+  # Participant 2 (GlobalCorp)
+  participant2:
+    image: digitalasset/canton-open-source:latest  # Currently 2.7.6
+    container_name: canton-participant2
+    ports:
+      - "5021:5021"  # Ledger API
+      - "5022:5022"  # Admin API
+    volumes:
+      - ./canton/participant2.conf:/canton/participant2.conf:ro
+      - ./canton/scripts:/canton/scripts:ro
+    command: daemon --config /canton/participant2.conf --log-level-root=INFO
+    depends_on:
+      - synchronizer
+    restart: unless-stopped
+
+  # Participant 3 (RetailFinance)
+  participant3:
+    image: digitalasset/canton-open-source:latest  # Currently 2.7.6
+    container_name: canton-participant3
+    ports:
+      - "5031:5031"  # Ledger API
+      - "5032:5032"  # Admin API
+    volumes:
+      - ./canton/participant3.conf:/canton/participant3.conf:ro
+      - ./canton/scripts:/canton/scripts:ro
+    command: daemon --config /canton/participant3.conf --log-level-root=INFO
+    depends_on:
+      - synchronizer
+    restart: unless-stopped
+
