@@ -324,3 +324,4 @@ export const addActivityLog = (entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
   }
 };
 
+
