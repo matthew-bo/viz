@@ -1,0 +1,83 @@
+version: '3.8'
+
+# Single-Node Canton Setup
+# 1 container runs both participant + domain
+# Simpler topology, faster initialization, easier debugging
+
+services:
+  # Single Canton node (participant1 + local domain)
+  canton:
+    image: digitalasset/canton-open-source:2.7.8
+    container_name: canton-single-node
+    ports:
+      - "5011:5011"  # Ledger API (gRPC)
+      - "5012:5012"  # Admin API (gRPC)
+      - "5018:5018"  # Domain Public API
+      - "5019:5019"  # Domain Admin API
+      - "7011:7011"  # HTTP JSON API (for backend)
+    volumes:
+      # Configuration file
+      - ./canton-simple.conf:/canton/canton-simple.conf:ro
+      # Initialization script
+      - ./canton-init.sc:/canton/canton-init.sc:ro
+      # DAR file (must exist before starting)
+      - ../daml/.daml/dist:/canton/daml/.daml/dist:ro
+    command: >
+      daemon 
+      --config /canton/canton-simple.conf
+      --bootstrap /canton/canton-init.sc
+      --log-level-root=INFO
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:7011/v1/parties || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - canton-network
+
+  # Backend API server
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # Single Canton node
+      - PARTICIPANT1_LEDGER_API=http://canton:7011
+      - PARTICIPANT2_LEDGER_API=http://canton:7011
+      - PARTICIPANT3_LEDGER_API=http://canton:7011
+    env_file:
+      - ../backend/.env
+    depends_on:
+      canton:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - canton-network
+
+  # Frontend web app
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://45.55.189.150:3001
+    container_name: frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - canton-network
+
+networks:
+  canton-network:
+    driver: bridge
+
