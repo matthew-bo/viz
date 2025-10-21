@@ -11,7 +11,8 @@ COPY tsconfig.json ./
 # Install dependencies
 RUN npm ci
 
-# Copy source code (daml-types nested node_modules excluded by .dockerignore)
+# Copy source code
+# Note: COPY follows symlinks by default, converting them to regular files/dirs
 COPY src ./src
 
 # Build TypeScript
@@ -31,9 +32,12 @@ RUN npm ci --only=production
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy entire src directory (includes daml-types with their structure)
-# Note: daml-types nested node_modules excluded by .dockerignore but source files included
-COPY --from=builder /app/src ./src
+# Copy daml-types to dist/ so compiled code can find it via ../daml-types
+# Note: On Linux, nested node_modules are included (Windows excludes via .dockerignore)
+COPY --from=builder /app/src/daml-types ./dist/daml-types
+
+# Fix symlinks: Remove absolute symlinks and replace with relative ones
+RUN find /app/dist/daml-types -type l -exec sh -c 'for link; do target=$(readlink "$link"); if [ "${target#/}" != "$target" ]; then echo "Absolute symlink found: $link -> $target"; rm "$link"; base=$(basename "$target"); ln -s "../../../$base" "$link"; echo "Fixed to: $link -> ../../../$base"; fi; done' sh {} +
 
 # Expose port
 EXPOSE 3001

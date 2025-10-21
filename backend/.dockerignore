@@ -12,7 +12,9 @@ test
 .idea
 coverage
 .DS_Store
-# Exclude daml-types node_modules (nested packages cause Docker build issues)
-src/daml-types/**/node_modules
-src/daml-types/**/package-lock.json
+# NOTE: daml-types node_modules are REQUIRED at runtime for @daml.js packages
+# Windows Docker builds may have symlink issues - use WSL2 or build on Linux
+# For DigitalOcean deployment, these MUST be included
+#src/daml-types/**/node_modules
+#src/daml-types/**/package-lock.json
 
