@@ -134,18 +134,10 @@ class ExchangeService {
       return false;
     }
 
-    // Re-validate before executing
-    const validation = this.validateExchange(
-      exchange.fromParty,
-      exchange.toParty,
-      exchange.offering,
-      exchange.requesting
-    );
-
-    if (!validation.valid) {
-      console.error('Exchange validation failed on acceptance:', validation.errors);
-      return false;
-    }
+    // Don't re-validate - assets are already in escrow!
+    // The validation was done during createExchange and assets were locked.
+    // Re-validating here would fail because ownership has already moved to escrow.
+    console.log(`✓ Skipping re-validation - assets already locked in escrow`);
 
     console.log(`Executing exchange ${exchangeId}...`);
 

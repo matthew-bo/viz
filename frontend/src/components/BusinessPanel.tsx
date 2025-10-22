@@ -73,7 +73,7 @@ export const BusinessPanel: React.FC = () => {
   // Store inventories
   const [inventories, setInventories] = useState<Map<string, PartyInventory>>(new Map());
   
-  // Fetch inventories on mount
+  // Fetch inventories on mount and when transactions change (for real-time updates)
   useEffect(() => {
     async function loadInventories() {
       try {
@@ -83,6 +83,7 @@ export const BusinessPanel: React.FC = () => {
           inventoryMap.set(inv.partyId, inv);
         });
         setInventories(inventoryMap);
+        console.log('✅ Inventories refreshed:', allInventories.length, 'parties');
       } catch (error) {
         console.error('Failed to load inventories:', error);
       }
@@ -91,7 +92,7 @@ export const BusinessPanel: React.FC = () => {
     if (parties.length > 0) {
       loadInventories();
     }
-  }, [parties]);
+  }, [parties, transactions]); // Added transactions as dependency for real-time updates
 
   const handlePartyClick = (partyName: string) => {
     // Toggle selection: if already selected, deselect

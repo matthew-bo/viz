@@ -1,6 +1,8 @@
 import { Transaction, Party, ExchangeProposal, ExchangeOffer, PartyInventory, Asset } from '../types';
+import { fetchWithTimeout, getErrorMessage } from '../utils/fetchWithTimeout';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const DEFAULT_TIMEOUT = 15000; // 15 seconds default timeout
 
 /**
  * Helper to log API calls to Activity Log
@@ -32,7 +34,7 @@ export const apiClient = {
     const url = `${API_BASE}/api/contracts${query.toString() ? `?${query}` : ''}`;
     
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url, { method: 'GET' }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch transactions' }));
@@ -44,8 +46,9 @@ export const apiClient = {
       logApiCall('GET', '/api/contracts', true, { params, count: data.length });
       return data;
     } catch (err) {
-      logApiCall('GET', '/api/contracts', false, { params, error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Get transactions');
+      logApiCall('GET', '/api/contracts', false, { params, error: message });
+      throw new Error(message);
     }
   },
   
@@ -61,11 +64,11 @@ export const apiClient = {
     rwaDetails?: string;
   }): Promise<Transaction> {
     try {
-      const response = await fetch(`${API_BASE}/api/contracts`, {
+      const response = await fetchWithTimeout(`${API_BASE}/api/contracts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
-      });
+      }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to submit transaction' }));
@@ -83,8 +86,9 @@ export const apiClient = {
       });
       return result;
     } catch (err) {
-      logApiCall('POST', '/api/contracts', false, { data, error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Submit transaction');
+      logApiCall('POST', '/api/contracts', false, { data, error: message });
+      throw new Error(message);
     }
   },
   
@@ -93,11 +97,11 @@ export const apiClient = {
    */
   async acceptContract(contractId: string, receiver: string): Promise<Transaction> {
     try {
-      const response = await fetch(`${API_BASE}/api/contracts/${contractId}/accept`, {
+      const response = await fetchWithTimeout(`${API_BASE}/api/contracts/${contractId}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receiver })
-      });
+      }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to accept transaction' }));
@@ -109,8 +113,9 @@ export const apiClient = {
       logApiCall('POST', `/api/contracts/${contractId}/accept`, true, { contractId, receiver });
       return result;
     } catch (err) {
-      logApiCall('POST', `/api/contracts/${contractId}/accept`, false, { receiver, error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Accept transaction');
+      logApiCall('POST', `/api/contracts/${contractId}/accept`, false, { receiver, error: message });
+      throw new Error(message);
     }
   },
   
@@ -119,7 +124,7 @@ export const apiClient = {
    */
   async getParties(): Promise<Party[]> {
     try {
-      const response = await fetch(`${API_BASE}/api/parties`);
+      const response = await fetchWithTimeout(`${API_BASE}/api/parties`, { method: 'GET' }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch parties' }));
@@ -131,8 +136,9 @@ export const apiClient = {
       logApiCall('GET', '/api/parties', true, { count: data.length, parties: data.map((p: Party) => p.displayName) });
       return data;
     } catch (err) {
-      logApiCall('GET', '/api/parties', false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Get parties');
+      logApiCall('GET', '/api/parties', false, { error: message });
+      throw new Error(message);
     }
   },
 
@@ -152,10 +158,10 @@ export const apiClient = {
     }
   }> {
     try {
-      const response = await fetch(`${API_BASE}/health`, {
+      const response = await fetchWithTimeout(`${API_BASE}/health`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
-      });
+      }, 10000); // Shorter timeout for health checks
       
       if (!response.ok) {
         logApiCall('GET', '/health', false, { statusCode: response.status });
@@ -166,8 +172,9 @@ export const apiClient = {
       // Don't log every health check to avoid spam, only failures
       return data;
     } catch (err) {
-      logApiCall('GET', '/health', false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Health check');
+      logApiCall('GET', '/health', false, { error: message });
+      throw new Error(message);
     }
   },
 
@@ -176,11 +183,11 @@ export const apiClient = {
    */
   async seedDemoData(count: number = 60): Promise<{ success: boolean; message: string; count: number }> {
     try {
-      const response = await fetch(`${API_BASE}/api/admin/seed-demo`, {
+      const response = await fetchWithTimeout(`${API_BASE}/api/admin/seed-demo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ count })
-      });
+      }, 30000); // Longer timeout for bulk operations
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to seed demo data' }));
@@ -192,8 +199,9 @@ export const apiClient = {
       logApiCall('POST', '/api/admin/seed-demo', true, { count: data.count });
       return data;
     } catch (err) {
-      logApiCall('POST', '/api/admin/seed-demo', false, { count, error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Seed demo data');
+      logApiCall('POST', '/api/admin/seed-demo', false, { count, error: message });
+      throw new Error(message);
     }
   },
 
@@ -202,7 +210,7 @@ export const apiClient = {
    */
   async getMetrics(): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE}/api/admin/metrics`);
+      const response = await fetchWithTimeout(`${API_BASE}/api/admin/metrics`, { method: 'GET' }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch metrics' }));
@@ -214,8 +222,9 @@ export const apiClient = {
       logApiCall('GET', '/api/admin/metrics', true, { total: data.total });
       return data;
     } catch (err) {
-      logApiCall('GET', '/api/admin/metrics', false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Get metrics');
+      logApiCall('GET', '/api/admin/metrics', false, { error: message });
+      throw new Error(message);
     }
   },
 
@@ -228,7 +237,7 @@ export const apiClient = {
    */
   async getInventory(partyId: string): Promise<PartyInventory> {
     try {
-      const response = await fetch(`${API_BASE}/api/inventory/${partyId}`);
+      const response = await fetchWithTimeout(`${API_BASE}/api/inventory/${partyId}`, { method: 'GET' }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch inventory' }));
@@ -239,8 +248,9 @@ export const apiClient = {
       logApiCall('GET', `/api/inventory/${partyId}`, true, { displayName: data.displayName });
       return data;
     } catch (err) {
-      logApiCall('GET', `/api/inventory/${partyId}`, false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Get inventory');
+      logApiCall('GET', `/api/inventory/${partyId}`, false, { error: message });
+      throw new Error(message);
     }
   },
 
@@ -249,7 +259,7 @@ export const apiClient = {
    */
   async getAllInventories(): Promise<PartyInventory[]> {
     try {
-      const response = await fetch(`${API_BASE}/api/inventory`);
+      const response = await fetchWithTimeout(`${API_BASE}/api/inventory`, { method: 'GET' }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch inventories' }));
@@ -260,8 +270,9 @@ export const apiClient = {
       logApiCall('GET', '/api/inventory', true, { count: data.length });
       return data;
     } catch (err) {
-      logApiCall('GET', '/api/inventory', false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Get inventories');
+      logApiCall('GET', '/api/inventory', false, { error: message });
+      throw new Error(message);
     }
   },
 
@@ -276,11 +287,11 @@ export const apiClient = {
     description?: string;
   }): Promise<ExchangeProposal> {
     try {
-      const response = await fetch(`${API_BASE}/api/exchanges`, {
+      const response = await fetchWithTimeout(`${API_BASE}/api/exchanges`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
-      });
+      }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to create exchange' }));
@@ -292,8 +303,9 @@ export const apiClient = {
       logApiCall('POST', '/api/exchanges', true, { exchangeId: result.id });
       return result;
     } catch (err) {
-      logApiCall('POST', '/api/exchanges', false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Create exchange');
+      logApiCall('POST', '/api/exchanges', false, { error: message });
+      throw new Error(message);
     }
   },
 
@@ -302,11 +314,11 @@ export const apiClient = {
    */
   async acceptExchange(exchangeId: string, acceptingParty: string): Promise<ExchangeProposal> {
     try {
-      const response = await fetch(`${API_BASE}/api/exchanges/${exchangeId}/accept`, {
+      const response = await fetchWithTimeout(`${API_BASE}/api/exchanges/${exchangeId}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ acceptingParty })
-      });
+      }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to accept exchange' }));
@@ -318,8 +330,9 @@ export const apiClient = {
       logApiCall('POST', `/api/exchanges/${exchangeId}/accept`, true, { exchangeId });
       return result;
     } catch (err) {
-      logApiCall('POST', `/api/exchanges/${exchangeId}/accept`, false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Accept exchange');
+      logApiCall('POST', `/api/exchanges/${exchangeId}/accept`, false, { error: message });
+      throw new Error(message);
     }
   },
 
@@ -332,7 +345,7 @@ export const apiClient = {
         ? `${API_BASE}/api/exchanges?party=${partyId}`
         : `${API_BASE}/api/exchanges`;
       
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url, { method: 'GET' }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch exchanges' }));
@@ -343,8 +356,9 @@ export const apiClient = {
       logApiCall('GET', '/api/exchanges', true, { count: data.length });
       return data;
     } catch (err) {
-      logApiCall('GET', '/api/exchanges', false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Get exchanges');
+      logApiCall('GET', '/api/exchanges', false, { error: message });
+      throw new Error(message);
     }
   },
 
@@ -353,7 +367,7 @@ export const apiClient = {
    */
   async getAsset(assetId: string): Promise<Asset> {
     try {
-      const response = await fetch(`${API_BASE}/api/assets/${assetId}`);
+      const response = await fetchWithTimeout(`${API_BASE}/api/assets/${assetId}`, { method: 'GET' }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch asset' }));
@@ -364,8 +378,9 @@ export const apiClient = {
       logApiCall('GET', `/api/assets/${assetId}`, true, { assetName: data.name });
       return data;
     } catch (err) {
-      logApiCall('GET', `/api/assets/${assetId}`, false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Get asset');
+      logApiCall('GET', `/api/assets/${assetId}`, false, { error: message });
+      throw new Error(message);
     }
   },
 
@@ -374,7 +389,7 @@ export const apiClient = {
    */
   async getAssetHistory(assetId: string): Promise<any[]> {
     try {
-      const response = await fetch(`${API_BASE}/api/assets/${assetId}/history`);
+      const response = await fetchWithTimeout(`${API_BASE}/api/assets/${assetId}/history`, { method: 'GET' }, DEFAULT_TIMEOUT);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch asset history' }));
@@ -385,8 +400,9 @@ export const apiClient = {
       logApiCall('GET', `/api/assets/${assetId}/history`, true, { historyCount: data.length });
       return data;
     } catch (err) {
-      logApiCall('GET', `/api/assets/${assetId}/history`, false, { error: err instanceof Error ? err.message : 'Unknown error' });
-      throw err;
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Get asset history');
+      logApiCall('GET', `/api/assets/${assetId}/history`, false, { error: message });
+      throw new Error(message);
     }
   }
 };

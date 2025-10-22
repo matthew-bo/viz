@@ -15,17 +15,26 @@ interface Props {
   maxEntries?: number;
 }
 
+const DEFAULT_MAX_ENTRIES = 500; // Circular buffer limit to prevent memory leaks
+const WARNING_THRESHOLD = 400; // Warn when approaching limit
+
 /**
- * ActivityLog - Tracks and displays all system activity
+ * ActivityLog - Tracks and displays all system activity with circular buffer
  * Provides export functionality for debugging and audit trails
+ * 
+ * Memory Management:
+ * - Automatically limits to 500 entries (circular buffer)
+ * - Warns when approaching limit
+ * - Old entries automatically removed
  */
-function ActivityLog({ maxEntries = 100 }: Props) {
+function ActivityLog({ maxEntries = DEFAULT_MAX_ENTRIES }: Props) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [filterLevel, setFilterLevel] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [hasShownWarning, setHasShownWarning] = useState(false);
 
-  // Add log entry
+  // Add log entry with circular buffer management
   const addLog = useCallback((entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
     const newEntry: LogEntry = {
       ...entry,
@@ -35,9 +44,22 @@ function ActivityLog({ maxEntries = 100 }: Props) {
 
     setLogs((prev) => {
       const updated = [newEntry, ...prev];
-      return updated.slice(0, maxEntries);
+      
+      // Implement circular buffer - keep only last maxEntries
+      const trimmed = updated.slice(0, maxEntries);
+      
+      // Warn if approaching limit (only once)
+      if (!hasShownWarning && trimmed.length >= WARNING_THRESHOLD) {
+        console.warn(
+          `Activity log approaching limit: ${trimmed.length}/${maxEntries} entries. ` +
+          `Oldest entries will be automatically removed.`
+        );
+        setHasShownWarning(true);
+      }
+      
+      return trimmed;
     });
-  }, [maxEntries]);
+  }, [maxEntries, hasShownWarning]);
 
   // Expose addLog function globally for use across app
   useEffect(() => {
@@ -187,6 +209,11 @@ function ActivityLog({ maxEntries = 100 }: Props) {
             <h3 className="font-semibold text-gray-900">Activity Log</h3>
             <p className="text-sm text-gray-500">
               {logs.length} {logs.length === 1 ? 'entry' : 'entries'} tracked
+              {logs.length >= WARNING_THRESHOLD && (
+                <span className="ml-2 text-yellow-600 font-medium">
+                  ({Math.round((logs.length / maxEntries) * 100)}% full)
+                </span>
+              )}
             </p>
           </div>
         </div>

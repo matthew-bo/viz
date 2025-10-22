@@ -1,5 +1,7 @@
 import React from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { useIsDesktop } from '../hooks/useMediaQuery';
+import { MobileLayout } from './MobileLayout';
 
 interface ResizableLayoutProps {
   leftPanel: React.ReactNode;
@@ -8,9 +10,9 @@ interface ResizableLayoutProps {
 }
 
 /**
- * ResizableLayout - Main layout wrapper using react-resizable-panels
+ * ResizableLayout - Adaptive layout wrapper
  * 
- * Layout structure:
+ * Desktop (≥1024px):
  * +------------------------------------------+
  * |  [Left Panel]  |  [Main Content]        |
  * |  (Business)    |  (Transactions)        |
@@ -18,12 +20,35 @@ interface ResizableLayoutProps {
  * +------------------------------------------+
  * |  [Footer - Synchronizer Blocks]         |
  * +------------------------------------------+
+ * 
+ * Mobile (<1024px):
+ * ┌─────────────────────────────────┐
+ * │      Content (full screen)      │
+ * │      Based on active tab        │
+ * │                                 │
+ * ├─────────────────────────────────┤
+ * │  [📊] [💼] [⏱️] [📈]  ← Tabs   │
+ * └─────────────────────────────────┘
  */
 export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
   leftPanel,
   mainContent,
   footer
 }) => {
+  const isDesktop = useIsDesktop();
+
+  // Mobile layout - Use bottom navigation with tab switching
+  if (!isDesktop) {
+    return (
+      <MobileLayout
+        leftPanel={leftPanel}
+        mainContent={mainContent}
+        footer={footer}
+      />
+    );
+  }
+
+  // Desktop layout - Use resizable panels (original behavior)
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Main horizontal split: Left panel + Main content */}

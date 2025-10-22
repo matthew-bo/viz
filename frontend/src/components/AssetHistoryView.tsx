@@ -228,8 +228,8 @@ export const AssetHistoryView: React.FC<Props> = ({ asset }) => {
                       </div>
                     </motion.div>
 
-                    {/* Arrow between nodes (except after last node) */}
-                    {index < sortedHistory.length - 1 && (
+                    {/* Arrow between nodes */}
+                    {index < sortedHistory.length && (
                       <motion.div
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -241,6 +241,66 @@ export const AssetHistoryView: React.FC<Props> = ({ asset }) => {
                     )}
                   </React.Fragment>
                 ))}
+                
+                {/* Current Owner Node - Always shown at the end */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: sortedHistory.length * 0.15 }}
+                  className="flex-shrink-0 w-80"
+                >
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border-4 border-green-500 p-5 shadow-lg relative overflow-hidden">
+                    {/* "Current Owner" Badge */}
+                    <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+                      CURRENT OWNER
+                    </div>
+                    
+                    {/* Party Circle and Name */}
+                    <div className="flex items-center gap-3 mb-3 mt-4">
+                      <div 
+                        className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-xl ring-4 ring-green-200"
+                        style={{ 
+                          backgroundColor: getPartyColor(asset.ownerId),
+                          boxShadow: `0 8px 16px ${getPartyColor(asset.ownerId) + '60'}`
+                        }}
+                      >
+                        {getPartyName(asset.ownerId).charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div 
+                          className="font-bold text-xl truncate"
+                          style={{ color: getPartyColor(asset.ownerId) }}
+                        >
+                          {getPartyName(asset.ownerId)}
+                        </div>
+                        <div className="text-sm text-green-700 font-semibold">
+                          ✓ Current Owner
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Asset Details */}
+                    <div className="space-y-2 text-sm bg-white bg-opacity-60 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Asset Valuation:</span>
+                        <span className="font-bold text-gray-900">
+                          {isRealEstate 
+                            ? formatCurrency((asset as RealEstateAsset).value) 
+                            : formatCurrency((asset as PrivateEquityAsset).valuation)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Total Transfers:</span>
+                        <span className="font-bold text-gray-900">{sortedHistory.length}</span>
+                      </div>
+                      {sortedHistory.length > 0 && (
+                        <div className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-300">
+                          Last transfer: {format(new Date(sortedHistory[sortedHistory.length - 1].timestamp), 'MMM d, yyyy')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
               </div>
 
               {/* Summary Stats */}

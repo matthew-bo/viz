@@ -7,11 +7,15 @@ import { ToastContainer } from './components/Toast';
 import { useAppStore } from './store/useAppStore';
 import { addActivityLog } from './components/ActivityLog';
 import Header from './components/Header';
+import { ActiveFiltersBanner } from './components/ActiveFiltersBanner';
 import { ResizableLayout } from './components/ResizableLayout';
 import { BusinessPanel } from './components/BusinessPanel';
 import { SynchronizerFooter } from './components/SynchronizerFooter';
 import { MainContent } from './components/MainContent';
 import { CreateExchangeModal } from './components/CreateExchangeModal';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
+import { exchangeToTransaction } from './utils/exchangeAdapter';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -29,14 +33,21 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   
+  // Keyboard shortcuts
+  const { registerShortcut, shortcuts, showHelp, setShowHelp } = useKeyboardShortcuts();
+  
   // Zustand store
   const {
     transactions,
     connectionStatus,
     setTransactions,
     setParties,
+    setSelectedBusiness,
+    setSelectedRWA,
     setConnectionStatus,
-    addOrUpdateTransaction
+    addOrUpdateTransaction,
+    setSelectedTransaction,
+    selectedBusiness
   } = useAppStore();
   
   // Toast notifications
@@ -47,6 +58,11 @@ function App() {
     async function loadInitialData() {
       try {
         console.log('Loading initial data...');
+        
+        // Clear any stale filters from previous session
+        setSelectedBusiness(null);
+        setSelectedRWA(null);
+        console.log('Cleared stale filters from previous session');
         
         // Load parties (always needed)
         const partiesList = await apiClient.getParties();
@@ -90,31 +106,135 @@ function App() {
     }
 
     loadInitialData();
-  }, [setParties, setTransactions]);
+  }, [setParties, setTransactions, setSelectedBusiness, setSelectedRWA]);
 
-  // Establish SSE connection for real-time updates
+  // Establish SSE connection for real-time updates with reconnection recovery
   useEffect(() => {
     console.log('Establishing SSE connection...');
     
+    let lastEventTime = Date.now();
+    let isReconnecting = false;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    
     const eventSource = new EventSource(`${API_BASE}/api/events`);
 
-    eventSource.onopen = () => {
+    // Fallback polling when disconnected
+    const startPolling = () => {
+      if (pollInterval) return; // Already polling
+      
+      console.log('Starting fallback polling...');
+      pollInterval = setInterval(async () => {
+        try {
+          // Poll for missed transactions (using 1 min buffer)
+          const [txs, exchanges] = await Promise.all([
+            apiClient.getTransactions({ limit: 50 }).catch(() => []),
+            apiClient.getExchanges().catch(() => [])
+          ]);
+          
+          // Update transactions
+          txs.forEach(tx => addOrUpdateTransaction(tx));
+          
+          // Convert exchanges to transactions
+          if (exchanges.length > 0) {
+            import('./utils/exchangeAdapter').then(({ exchangesToTransactions }) => {
+              const exchangeTxs = exchangesToTransactions(exchanges);
+              exchangeTxs.forEach(tx => addOrUpdateTransaction(tx));
+            });
+          }
+          
+          console.log(`Polling update: ${txs.length} transactions, ${exchanges.length} exchanges`);
+        } catch (err) {
+          console.error('Polling failed:', err);
+        }
+      }, 30000); // Poll every 30 seconds
+    };
+    
+    const stopPolling = () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        console.log('Stopped fallback polling');
+      }
+    };
+
+    eventSource.onopen = async () => {
       console.log('✓ SSE connected');
       setConnectionStatus('connected');
       setError(null);
-      toast.success('Connected to Canton Network');
-      addActivityLog({
-        level: 'success',
-        category: 'sse',
-        message: 'Real-time connection established',
-        details: { endpoint: `${API_BASE}/api/events` },
-      });
+      stopPolling();
+      
+      // If reconnecting, fetch missed events
+      if (isReconnecting) {
+        console.log('Reconnected - fetching missed events...');
+        addActivityLog({
+          level: 'info',
+          category: 'sse',
+          message: 'Reconnected - recovering missed events',
+          details: { lastEventTime: new Date(lastEventTime).toISOString() },
+        });
+        
+        try {
+          // Fetch all missed data (using 1 min buffer for safety)
+          const [txs, exchanges] = await Promise.all([
+            apiClient.getTransactions({ limit: 100 }),
+            apiClient.getExchanges()
+          ]);
+          
+          // Filter to only recent ones (server-side filtering would be better)
+          const recentTxs = txs.filter(tx => 
+            new Date(tx.recordTime).getTime() > lastEventTime - 60000
+          );
+          
+          // Update store
+          recentTxs.forEach(tx => addOrUpdateTransaction(tx));
+          
+          // Convert exchanges
+          if (exchanges.length > 0) {
+            import('./utils/exchangeAdapter').then(({ exchangesToTransactions }) => {
+              const exchangeTxs = exchangesToTransactions(exchanges);
+              const recentExchanges = exchangeTxs.filter(tx =>
+                new Date(tx.recordTime).getTime() > lastEventTime - 60000
+              );
+              recentExchanges.forEach(tx => addOrUpdateTransaction(tx));
+            });
+          }
+          
+          const totalRecovered = recentTxs.length;
+          if (totalRecovered > 0) {
+            toast.success(`Reconnected. Loaded ${totalRecovered} missed update${totalRecovered > 1 ? 's' : ''}.`);
+            addActivityLog({
+              level: 'success',
+              category: 'sse',
+              message: `Recovered ${totalRecovered} missed events`,
+            });
+          } else {
+            toast.success('Reconnected to Canton Network');
+          }
+        } catch (err) {
+          console.error('Failed to recover missed events:', err);
+          toast.info('Reconnected, but some updates may have been missed. Refresh to sync.');
+        }
+        
+        isReconnecting = false;
+      } else {
+        // Initial connection
+        toast.success('Connected to Canton Network');
+        addActivityLog({
+          level: 'success',
+          category: 'sse',
+          message: 'Real-time connection established',
+          details: { endpoint: `${API_BASE}/api/events` },
+        });
+      }
     };
 
     eventSource.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
         console.log('SSE message received:', message);
+        
+        // Update last event time on every message
+        lastEventTime = Date.now();
 
         if (message.type === 'connected') {
           console.log('SSE connection confirmed');
@@ -177,16 +297,83 @@ function App() {
     eventSource.onerror = (err) => {
       console.error('✗ SSE error:', err);
       setConnectionStatus('disconnected');
+      isReconnecting = true;
+      
+      addActivityLog({
+        level: 'warning',
+        category: 'sse',
+        message: 'Connection lost - attempting to reconnect',
+        details: { error: String(err) },
+      });
+      
       toast.error('Connection lost. Attempting to reconnect...');
+      
+      // Start polling as fallback
+      startPolling();
+      
       // EventSource automatically reconnects
     };
 
     // Cleanup on unmount
     return () => {
       console.log('Closing SSE connection');
+      stopPolling();
       eventSource.close();
     };
-  }, []); // Empty deps - only run once on mount
+  }, []); // Empty deps - SSE should only connect once on mount
+
+  // Register keyboard shortcuts
+  useEffect(() => {
+    // Ctrl+N: Open create modal
+    registerShortcut({
+      key: 'n',
+      ctrl: true,
+      description: 'Create new transaction',
+      action: () => setIsCreateModalOpen(true),
+      category: 'actions'
+    });
+
+    // Escape: Close modals
+    registerShortcut({
+      key: 'Escape',
+      description: 'Close modal or clear selection',
+      action: () => {
+        setIsCreateModalOpen(false);
+        setSelectedTransaction(null);
+      },
+      category: 'navigation'
+    });
+
+    // Ctrl+B: Toggle business panel
+    registerShortcut({
+      key: 'b',
+      ctrl: true,
+      description: 'Toggle business panel',
+      action: () => {
+        if (selectedBusiness) {
+          setSelectedBusiness(null);
+          toast.info('Business filter cleared');
+        }
+      },
+      category: 'navigation'
+    });
+
+    // Ctrl+/: Show shortcuts help
+    registerShortcut({
+      key: '/',
+      ctrl: true,
+      description: 'Show keyboard shortcuts',
+      action: () => setShowHelp(true),
+      category: 'general'
+    });
+
+    addActivityLog({
+      level: 'info',
+      category: 'system',
+      message: 'Keyboard shortcuts registered',
+      details: { count: 4 }
+    });
+  }, []); // Register shortcuts only once on mount - don't include registerShortcut to avoid infinite loop
 
   // Handle form submission (with RWA fields)
   const handleExchangeSubmit = async (data: {
@@ -213,7 +400,19 @@ function App() {
       toast.success('Exchange proposal created successfully');
       console.log('Exchange created:', exchange);
       
-      // TODO: Auto-select the exchange in the UI when SSE updates
+      // Convert exchange to transaction format and auto-select to show timeline
+      const transactionView = exchangeToTransaction(exchange);
+      setSelectedTransaction(transactionView);
+      
+      // Add to store (SSE will also update, but this provides immediate feedback)
+      addOrUpdateTransaction(transactionView);
+      
+      addActivityLog({
+        level: 'success',
+        category: 'user',
+        message: 'Exchange created and timeline opened',
+        details: { exchangeId: exchange.id },
+      });
     } catch (err: any) {
       console.error('Failed to create exchange:', err);
       toast.error(err?.message || 'Failed to create exchange');
@@ -281,6 +480,9 @@ function App() {
         onCreateClick={() => setIsCreateModalOpen(true)}
       />
 
+      {/* Active Filters Banner */}
+      <ActiveFiltersBanner />
+
       {/* Main Resizable Layout */}
       <ResizableLayout
         leftPanel={<BusinessPanel />}
@@ -293,6 +495,13 @@ function App() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleExchangeSubmit}
+      />
+
+      {/* Keyboard Shortcuts Help Modal */}
+      <KeyboardShortcutsHelp
+        shortcuts={shortcuts}
+        isOpen={showHelp}
+        onClose={() => setShowHelp(false)}
       />
 
     </div>

@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../store/useAppStore';
 import { apiClient } from '../api/client';
 import { AssetType, PartyInventory, ExchangeOffer } from '../types';
+import { sanitizeDescription, sanitizeNumber, logSanitization } from '../utils/sanitize';
 
 interface Props {
   isOpen: boolean;
@@ -84,6 +85,12 @@ export const CreateExchangeModal: React.FC<Props> = ({ isOpen, onClose, onSubmit
     e.preventDefault();
     setError(null);
 
+    // Sanitize inputs
+    const sanitizedDescription = sanitizeDescription(description);
+    if (description !== sanitizedDescription) {
+      logSanitization('description', description, sanitizedDescription);
+    }
+
     // Validation
     if (!fromParty || !toParty) {
       setError('Please select both sender and receiver');
@@ -98,8 +105,8 @@ export const CreateExchangeModal: React.FC<Props> = ({ isOpen, onClose, onSubmit
     // Build offering
     const offering: ExchangeOffer = { type: offeringType };
     if (offeringType === 'cash') {
-      const amount = parseFloat(offeringCash);
-      if (isNaN(amount) || amount <= 0) {
+      const amount = sanitizeNumber(offeringCash);
+      if (amount <= 0) {
         setError('Please enter a valid cash amount for offering');
         return;
       }
@@ -119,8 +126,8 @@ export const CreateExchangeModal: React.FC<Props> = ({ isOpen, onClose, onSubmit
     // Build requesting
     const requesting: ExchangeOffer = { type: requestingType };
     if (requestingType === 'cash') {
-      const amount = parseFloat(requestingCash);
-      if (isNaN(amount) || amount <= 0) {
+      const amount = sanitizeNumber(requestingCash);
+      if (amount <= 0) {
         setError('Please enter a valid cash amount for requesting');
         return;
       }
@@ -144,7 +151,7 @@ export const CreateExchangeModal: React.FC<Props> = ({ isOpen, onClose, onSubmit
         toParty,
         offering,
         requesting,
-        description: description || undefined,
+        description: sanitizedDescription || undefined,
       });
       onClose();
     } catch (err: any) {

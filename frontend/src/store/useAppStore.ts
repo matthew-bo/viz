@@ -137,10 +137,18 @@ export const useAppStore = create<AppStore>()(
           );
         }
         
-        // Sort by record time (newest first)
-        return filtered.sort((a, b) => 
-          new Date(b.recordTime).getTime() - new Date(a.recordTime).getTime()
-        );
+        // Sort by record time (newest first) with NaN handling
+        return filtered.sort((a, b) => {
+          const timeA = new Date(a.recordTime).getTime();
+          const timeB = new Date(b.recordTime).getTime();
+          
+          // Handle invalid dates (NaN)
+          if (isNaN(timeA) && isNaN(timeB)) return 0;
+          if (isNaN(timeA)) return 1; // Push invalid dates to end
+          if (isNaN(timeB)) return -1;
+          
+          return timeB - timeA; // Newest first
+        });
       },
       
       getMetricsForParty: (partyName) => {

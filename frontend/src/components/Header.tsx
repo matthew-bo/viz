@@ -1,9 +1,10 @@
 import { memo, useState, useEffect, useRef } from 'react';
-import { Wifi, WifiOff, Hexagon, Plus, ChevronDown, FileJson, FileSpreadsheet, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { Wifi, WifiOff, Hexagon, Plus, ChevronDown, FileJson, FileSpreadsheet, CheckCircle, AlertCircle, XCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { exportLogsAsJSON, exportLogsAsCSV } from '../utils/activityLogUtils';
 import { useAppStore } from '../store/useAppStore';
 import { apiClient } from '../api/client';
+import { useIsMobile, useIsSmallMobile } from '../hooks/useMediaQuery';
 
 interface Props {
   isConnected: boolean;
@@ -86,45 +87,54 @@ function Header({ isConnected, onCreateClick }: Props) {
     }
   }, [showHealthDropdown]);
 
-  return (
-    <header className="bg-gradient-to-r from-canton-dark via-canton-dark-light to-canton-dark text-white shadow-lg sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          {/* Branding */}
-          <div className="flex items-center gap-3">
-            <div className="bg-canton-blue p-2 rounded-lg">
-              <Hexagon className="w-6 h-6" fill="currentColor" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">
-                Canton Privacy Blockchain
-              </h1>
-              <p className="text-sm text-gray-300">
-                Multi-Party Privacy-Preserving Transactions
-              </p>
-            </div>
-          </div>
+  const isMobile = useIsMobile();
+  const isSmallMobile = useIsSmallMobile();
 
-          {/* Right Actions */}
-          <div className="flex items-center gap-4">
-            {/* CREATE Button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onCreateClick}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 
-                       rounded-lg font-semibold transition-colors shadow-lg"
-            >
-              <Plus className="w-4 h-4" />
-              CREATE
-            </motion.button>
+  return (
+    <>
+      <header className="bg-gradient-to-r from-canton-dark via-canton-dark-light to-canton-dark text-white shadow-lg sticky top-0 z-50"
+              style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)' }}>
+        <div className="container mx-auto px-3 lg:px-4 py-3 lg:py-4">
+          <div className="flex items-center justify-between">
+            {/* Branding */}
+            <div className="flex items-center gap-2 lg:gap-3 min-w-0 flex-1">
+              <div className="bg-canton-blue p-1.5 lg:p-2 rounded-lg flex-shrink-0">
+                <Hexagon className="w-5 h-5 lg:w-6 lg:h-6" fill="currentColor" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-base lg:text-xl font-bold tracking-tight truncate">
+                  {isSmallMobile ? 'Canton' : 'Canton Privacy Blockchain'}
+                </h1>
+                {!isSmallMobile && (
+                  <p className="text-xs lg:text-sm text-gray-300 truncate">
+                    {isMobile ? 'Privacy-Preserving Blockchain' : 'Multi-Party Privacy-Preserving Transactions'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Right Actions */}
+            <div className="flex items-center gap-2 lg:gap-4 flex-shrink-0">
+              {/* CREATE Button - Desktop only (Mobile uses FAB) */}
+              {!isMobile && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={onCreateClick}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 
+                           rounded-lg font-semibold transition-colors shadow-lg min-h-[44px]"
+                >
+                  <Plus className="w-4 h-4" />
+                  CREATE
+                </motion.button>
+              )}
 
             {/* Health Status Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowHealthDropdown(!showHealthDropdown)}
-                className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 
-                         rounded-lg transition-colors"
+                className="flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3 py-2 bg-white/10 hover:bg-white/20 
+                         rounded-lg transition-colors min-h-[44px]"
                 aria-label="System health status"
               >
                 {isConnected ? (
@@ -148,16 +158,32 @@ function Header({ isConnected, onCreateClick }: Props) {
               <AnimatePresence>
                 {showHealthDropdown && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
+                    initial={isMobile ? { opacity: 0 } : { opacity: 0, y: -10 }}
+                    animate={isMobile ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                    exit={isMobile ? { opacity: 0 } : { opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl 
-                             border border-gray-200 overflow-hidden"
+                    className={`${
+                      isMobile 
+                        ? 'fixed inset-x-0 top-0 bottom-0 z-50 bg-white overflow-y-auto'
+                        : 'absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden'
+                    }`}
+                    style={isMobile ? { 
+                      marginTop: 'max(env(safe-area-inset-top), 0px)',
+                      paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)'
+                    } : {}}
                   >
                     {/* Header */}
-                    <div className="p-3 bg-gray-50 border-b border-gray-200">
+                    <div className={`p-3 bg-gray-50 border-b border-gray-200 ${isMobile ? 'flex items-center justify-between' : ''}`}>
                       <div className="font-semibold text-gray-800 text-sm">System Health</div>
+                      {isMobile && (
+                        <button
+                          onClick={() => setShowHealthDropdown(false)}
+                          className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                          aria-label="Close"
+                        >
+                          <X className="w-5 h-5 text-gray-600" />
+                        </button>
+                      )}
                     </div>
                     
                     {/* Detailed Health Status */}
@@ -259,6 +285,25 @@ function Header({ isConnected, onCreateClick }: Props) {
         </div>
       </div>
     </header>
+
+      {/* Mobile FAB - Floating Action Button */}
+      {isMobile && (
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={onCreateClick}
+          className="fixed right-4 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-700 
+                   rounded-full shadow-2xl flex items-center justify-center text-white
+                   focus:outline-none focus:ring-4 focus:ring-blue-400"
+          style={{ 
+            bottom: 'calc(5rem + max(env(safe-area-inset-bottom), 0.5rem))' 
+          }}
+          aria-label="Create new transaction"
+        >
+          <Plus className="w-6 h-6" />
+        </motion.button>
+      )}
+    </>
   );
 }
 

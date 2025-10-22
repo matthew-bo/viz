@@ -8,8 +8,9 @@ import { RWAFlowDiagram } from './RWAFlowDiagram';
 import { AssetHistoryView } from './AssetHistoryView';
 import { MetricsDashboard } from './MetricsDashboard';
 import { apiClient } from '../api/client';
-import { useToast } from '../hooks/useToast';
 import { isExchangeTransaction } from '../utils/exchangeAdapter';
+import { useIsSmallMobile } from '../hooks/useMediaQuery';
+import { useTransactionAction } from '../hooks/useTransactionAction';
 
 type ViewMode = 'list' | 'metrics' | 'flow';
 
@@ -29,8 +30,8 @@ export const MainContent: React.FC = () => {
     setSelectedAsset,
     selectedBusiness 
   } = useAppStore();
-  const { toast } = useToast();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const isSmallMobile = useIsSmallMobile();
 
   // When switching tabs, clear drill-downs
   const handleTabChange = (mode: ViewMode) => {
@@ -39,35 +40,36 @@ export const MainContent: React.FC = () => {
     setSelectedAsset(null);
   };
 
+  const { executeAction, isProcessing } = useTransactionAction();
+
   const handleAccept = async () => {
     if (!selectedTransaction) return;
 
-    try {
-      // Check if this is an exchange or a Canton transaction
-      const isExchange = isExchangeTransaction(selectedTransaction);
-      
-      if (isExchange) {
-        // Handle exchange acceptance
-        toast.info('Accepting exchange...');
-        await apiClient.acceptExchange(selectedTransaction.contractId, selectedTransaction.payload.receiver);
-        toast.success('✅ Exchange accepted! Assets transferred. Returning to list...');
-      } else {
-        // Handle Canton transaction acceptance
-        toast.info('Accepting transaction...');
-        await apiClient.acceptContract(selectedTransaction.contractId, selectedTransaction.receiverDisplayName);
-        toast.success('✅ Transaction accepted! Returning to list...');
+    const isExchange = isExchangeTransaction(selectedTransaction);
+    const contractId = selectedTransaction.contractId;
+
+    await executeAction(
+      contractId,
+      async () => {
+        if (isExchange) {
+          await apiClient.acceptExchange(contractId, selectedTransaction.payload.receiver);
+        } else {
+          await apiClient.acceptContract(contractId, selectedTransaction.receiverDisplayName);
+        }
+      },
+      {
+        loadingMessage: `Accepting ${isExchange ? 'exchange' : 'transaction'}...`,
+        successMessage: `✅ ${isExchange ? 'Exchange' : 'Transaction'} accepted! Inventories will update momentarily...`,
+        errorMessage: `Failed to accept ${isExchange ? 'exchange' : 'transaction'}`,
+        onSuccess: () => {
+          console.log('✅ Exchange/Transaction accepted, SSE will trigger inventory refresh');
+          // Clear selection after 2 seconds to show the updated transaction in the list
+          setTimeout(() => {
+            setSelectedTransaction(null);
+          }, 2000);
+        }
       }
-      
-      // Clear selection after 2 seconds to show the updated transaction in the list
-      setTimeout(() => {
-        setSelectedTransaction(null);
-      }, 2000);
-      
-      // Transaction will update via SSE
-    } catch (error) {
-      console.error('Failed to accept:', error);
-      toast.error(`Failed to accept ${isExchangeTransaction(selectedTransaction) ? 'exchange' : 'transaction'}`);
-    }
+    );
   };
 
   return (
@@ -94,41 +96,44 @@ export const MainContent: React.FC = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1 px-6">
+        <div className="flex items-center gap-0.5 lg:gap-1 px-3 lg:px-6 overflow-x-auto">
           <button
             onClick={() => handleTabChange('list')}
-            className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 ${
+            className={`flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-3 font-medium text-sm 
+                       transition-colors border-b-2 min-h-touch whitespace-nowrap ${
               viewMode === 'list' && !selectedTransaction && !selectedAsset
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
             }`}
           >
-            <List className="w-4 h-4" />
-            <span>Transactions</span>
+            <List className="w-4 h-4 lg:w-5 lg:h-5" />
+            {!isSmallMobile && <span>Transactions</span>}
           </button>
 
           <button
             onClick={() => handleTabChange('metrics')}
-            className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 ${
+            className={`flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-3 font-medium text-sm 
+                       transition-colors border-b-2 min-h-touch whitespace-nowrap ${
               viewMode === 'metrics' && !selectedTransaction && !selectedAsset
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
             }`}
           >
-            <BarChart3 className="w-4 h-4" />
-            <span>Metrics</span>
+            <BarChart3 className="w-4 h-4 lg:w-5 lg:h-5" />
+            {!isSmallMobile && <span>Metrics</span>}
           </button>
 
           <button
             onClick={() => handleTabChange('flow')}
-            className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 ${
+            className={`flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-3 font-medium text-sm 
+                       transition-colors border-b-2 min-h-touch whitespace-nowrap ${
               viewMode === 'flow' && !selectedTransaction && !selectedAsset
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
             }`}
           >
-            <TrendingUp className="w-4 h-4" />
-            <span>Flow</span>
+            <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" />
+            {!isSmallMobile && <span>Flow</span>}
           </button>
 
           {/* Drill-down indicator */}
@@ -178,6 +183,7 @@ export const MainContent: React.FC = () => {
               <TransactionTimeline 
                 transaction={selectedTransaction} 
                 onAccept={selectedTransaction.status === 'pending' ? handleAccept : undefined}
+                isAccepting={isProcessing(selectedTransaction.contractId)}
               />
             </motion.div>
           ) : viewMode === 'list' ? (

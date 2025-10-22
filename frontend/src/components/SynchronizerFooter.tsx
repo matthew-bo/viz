@@ -1,11 +1,13 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { Transaction } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { isExchangeTransaction } from '../utils/exchangeAdapter';
+import { useTransactionAction } from '../hooks/useTransactionAction';
 
 /**
  * SynchronizerFooter - Horizontal timeline of smart contracts
@@ -47,41 +49,41 @@ export const SynchronizerFooter: React.FC = () => {
   const committedTxs = filteredTransactions.filter(tx => tx.status === 'committed');
   const pendingTxs = filteredTransactions.filter(tx => tx.status === 'pending');
 
+  // Use transaction action hook for race condition prevention
+  const { executeAction, isProcessing } = useTransactionAction();
+
   // Handle accept action from contract block (works for both Canton transactions and exchanges)
   const handleAccept = async (contractId: string) => {
-    try {
-      // Find the transaction to get receiver name
-      const tx = transactions.find(t => t.contractId === contractId);
-      if (!tx) {
-        toast.error('Transaction not found');
-        return;
-      }
-      
-      // Check if this is an exchange or a Canton transaction
-      const isExchange = isExchangeTransaction(tx);
-      
-      if (isExchange) {
-        // Handle exchange acceptance
-        toast.info('Accepting exchange...');
-        await apiClient.acceptExchange(contractId, tx.payload.receiver);
-        toast.success('✅ Exchange accepted! Assets transferred.');
-      } else {
-        // Handle Canton transaction acceptance
-        toast.info('Accepting transaction...');
-        await apiClient.acceptContract(contractId, tx.receiverDisplayName);
-        toast.success('✅ Transaction accepted! View updated in timeline.');
-      }
-      
-      // Auto-select the accepted transaction to show details
-      setTimeout(() => {
-        setSelectedTransaction(tx);
-      }, 2000);
-      
-      // Transaction will update via SSE
-    } catch (error) {
-      console.error('Failed to accept:', error);
-      toast.error(`Failed to accept ${isExchangeTransaction(transactions.find(t => t.contractId === contractId)!) ? 'exchange' : 'transaction'}`);
+    // Find the transaction to get receiver name
+    const tx = transactions.find(t => t.contractId === contractId);
+    if (!tx) {
+      toast.error('Transaction not found');
+      return;
     }
+    
+    const isExchange = isExchangeTransaction(tx);
+    
+    await executeAction(
+      contractId,
+      async () => {
+        if (isExchange) {
+          await apiClient.acceptExchange(contractId, tx.payload.receiver);
+        } else {
+          await apiClient.acceptContract(contractId, tx.receiverDisplayName);
+        }
+      },
+      {
+        loadingMessage: `Accepting ${isExchange ? 'exchange' : 'transaction'}...`,
+        successMessage: `✅ ${isExchange ? 'Exchange accepted! Assets transferred.' : 'Transaction accepted! View updated in timeline.'}`,
+        errorMessage: `Failed to accept ${isExchange ? 'exchange' : 'transaction'}`,
+        onSuccess: () => {
+          // Auto-select the accepted transaction to show details
+          setTimeout(() => {
+            setSelectedTransaction(tx);
+          }, 2000);
+        }
+      }
+    );
   };
 
   return (
@@ -156,6 +158,7 @@ export const SynchronizerFooter: React.FC = () => {
               isSelected={selectedTransaction?.contractId === tx.contractId}
               onClick={() => setSelectedTransaction(tx)}
               onAccept={handleAccept}
+              isAccepting={isProcessing(tx.contractId)}
             />
           ))}
 
@@ -179,6 +182,7 @@ export const SynchronizerFooter: React.FC = () => {
               isSelected={selectedTransaction?.contractId === tx.contractId}
               onClick={() => setSelectedTransaction(tx)}
               onAccept={handleAccept}
+              isAccepting={isProcessing(tx.contractId)}
             />
           ))}
         </div>
@@ -196,6 +200,7 @@ interface ContractBlockProps {
   isSelected: boolean;
   onClick: () => void;
   onAccept?: (contractId: string) => void;
+  isAccepting?: boolean;
 }
 
 const ContractBlock: React.FC<ContractBlockProps> = ({ 
@@ -203,7 +208,8 @@ const ContractBlock: React.FC<ContractBlockProps> = ({
   index, 
   isSelected, 
   onClick,
-  onAccept
+  onAccept,
+  isAccepting = false
 }) => {
   const isCommitted = transaction.status === 'committed';
   const isPending = transaction.status === 'pending';
@@ -288,11 +294,20 @@ const ContractBlock: React.FC<ContractBlockProps> = ({
       {isPending && onAccept && (
         <button
           onClick={handleAcceptClick}
+          disabled={isAccepting}
           className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 
                      hover:to-green-700 text-white font-bold py-2 px-3 text-sm
-                     transition-all transform hover:scale-105 border-t border-green-600"
+                     transition-all transform hover:scale-105 border-t border-green-600
+                     disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
         >
-          ✓ Accept
+          {isAccepting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Accepting...
+            </>
+          ) : (
+            <>✓ Accept</>
+          )}
         </button>
       )}
     </motion.div>

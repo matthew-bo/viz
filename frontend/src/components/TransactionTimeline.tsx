@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, CheckCircle, ArrowRight, User } from 'lucide-react';
+import { Clock, CheckCircle, ArrowRight, ArrowLeftRight, User, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Transaction } from '../types';
 import { useAppStore } from '../store/useAppStore';
+import { isExchangeTransaction, getExchangeDetails } from '../utils/exchangeAdapter';
 
 interface TransactionTimelineProps {
   transaction: Transaction;
   onAccept?: () => void;
+  isAccepting?: boolean;
 }
 
 /**
@@ -21,11 +23,27 @@ interface TransactionTimelineProps {
  */
 export const TransactionTimeline: React.FC<TransactionTimelineProps> = ({
   transaction,
-  onAccept
+  onAccept,
+  isAccepting = false
 }) => {
   const { parties } = useAppStore();
   const isPending = transaction.status === 'pending';
   const isCommitted = transaction.status === 'committed';
+  
+  // Check if this is a two-sided exchange
+  const isExchange = isExchangeTransaction(transaction);
+  const exchangeDetails = isExchange ? getExchangeDetails(transaction) : null;
+  
+  // Debug logging (only once on mount or when transaction changes)
+  useEffect(() => {
+    console.log('TransactionTimeline Debug:', {
+      contractId: transaction.contractId,
+      templateId: transaction.templateId,
+      isExchange,
+      exchangeDetails,
+      rwaDetails: transaction.payload.rwaDetails
+    });
+  }, [transaction.contractId]); // Only log when transaction ID changes
 
   const getSenderColor = () => {
     return parties.find(p => p.displayName === transaction.senderDisplayName)?.color || '#3B82F6';
@@ -44,11 +62,12 @@ export const TransactionTimeline: React.FC<TransactionTimelineProps> = ({
           animate={{ opacity: 1, y: 0 }}
           className="text-center"
         >
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Transaction Timeline
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-2">
+            {isExchange && <span className="text-purple-600">⇄</span>}
+            {isExchange ? 'Asset Exchange Timeline' : 'Transaction Timeline'}
           </h1>
           <p className="text-gray-600">
-            Track the progress of this payment request
+            {isExchange ? 'Track the progress of this two-sided asset exchange' : 'Track the progress of this payment request'}
           </p>
         </motion.div>
 
@@ -99,20 +118,71 @@ export const TransactionTimeline: React.FC<TransactionTimelineProps> = ({
               </div>
             </div>
 
-            {/* Arrow with Amount */}
+            {/* Arrow with Amount/Exchange Details */}
             <div className="flex flex-col items-center gap-2 px-8">
-              <motion.div
-                animate={{ x: [0, 10, 0] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-              >
-                <ArrowRight className="w-16 h-16 text-blue-500" />
-              </motion.div>
-              <div className="text-center bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-xl shadow-lg">
-                <div className="text-2xl font-bold">
-                  ${parseFloat(transaction.payload.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                </div>
-                <div className="text-sm opacity-90">{transaction.payload.currency}</div>
-              </div>
+              {isExchange && exchangeDetails ? (
+                // Two-Sided Exchange Display
+                <>
+                  <motion.div
+                    animate={{ rotate: [0, 180, 360] }}
+                    transition={{ repeat: Infinity, duration: 3 }}
+                  >
+                    <ArrowLeftRight className="w-16 h-16 text-purple-500" />
+                  </motion.div>
+                  <div className="flex flex-col gap-3 w-full max-w-md">
+                    {/* Offering */}
+                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-3 rounded-xl shadow-lg">
+                      <div className="text-xs uppercase tracking-wider opacity-90 mb-1">Offering</div>
+                      <div className="font-bold text-lg">
+                        {exchangeDetails.offering.type === 'cash' 
+                          ? `$${exchangeDetails.offering.cashAmount?.toLocaleString()}`
+                          : exchangeDetails.offering.assetName || `${exchangeDetails.offering.type} Asset`
+                        }
+                      </div>
+                      {exchangeDetails.offering.type !== 'cash' && exchangeDetails.offering.assetValue && (
+                        <div className="text-xs opacity-75 mt-1">
+                          Value: ${exchangeDetails.offering.assetValue.toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Exchange Icon */}
+                    <div className="text-center text-2xl">⇅</div>
+                    
+                    {/* Requesting */}
+                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-3 rounded-xl shadow-lg">
+                      <div className="text-xs uppercase tracking-wider opacity-90 mb-1">Requesting</div>
+                      <div className="font-bold text-lg">
+                        {exchangeDetails.requesting.type === 'cash' 
+                          ? `$${exchangeDetails.requesting.cashAmount?.toLocaleString()}`
+                          : exchangeDetails.requesting.assetName || `${exchangeDetails.requesting.type} Asset`
+                        }
+                      </div>
+                      {exchangeDetails.requesting.type !== 'cash' && exchangeDetails.requesting.assetValue && (
+                        <div className="text-xs opacity-75 mt-1">
+                          Value: ${exchangeDetails.requesting.assetValue.toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                // Regular Payment Display
+                <>
+                  <motion.div
+                    animate={{ x: [0, 10, 0] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                  >
+                    <ArrowRight className="w-16 h-16 text-blue-500" />
+                  </motion.div>
+                  <div className="text-center bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-xl shadow-lg">
+                    <div className="text-2xl font-bold">
+                      ${parseFloat(transaction.payload.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-sm opacity-90">{transaction.payload.currency}</div>
+                  </div>
+                </>
+              )}
               
               {/* Escrow Status - Only for Pending */}
               {isPending && (
@@ -125,7 +195,7 @@ export const TransactionTimeline: React.FC<TransactionTimelineProps> = ({
                   <div className="flex items-center gap-2 text-amber-800">
                     <span className="text-lg">🔒</span>
                     <div className="text-sm">
-                      <div className="font-bold">Funds in Escrow</div>
+                      <div className="font-bold">{isExchange ? 'Assets in Escrow' : 'Funds in Escrow'}</div>
                       <div className="text-xs text-amber-600">Locked until accepted</div>
                     </div>
                   </div>
@@ -239,13 +309,24 @@ export const TransactionTimeline: React.FC<TransactionTimelineProps> = ({
               {onAccept && (
                 <button
                   onClick={onAccept}
+                  disabled={isAccepting}
                   className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 
                            hover:to-blue-700 text-white font-bold py-4 px-6 rounded-xl 
                            shadow-lg hover:shadow-xl transition-all transform hover:scale-105
-                           flex items-center justify-center gap-2"
+                           flex items-center justify-center gap-2
+                           disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  <CheckCircle className="w-6 h-6" />
-                  Accept Transaction
+                  {isAccepting ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      Accepting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-6 h-6" />
+                      Accept Transaction
+                    </>
+                  )}
                 </button>
               )}
             </div>
