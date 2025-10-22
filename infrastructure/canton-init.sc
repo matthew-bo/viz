@@ -18,58 +18,31 @@ println("⏳ Waiting for connection to stabilize...")
 Thread.sleep(5000)
 println("✓ Connection stable")
 
-println("👥 Creating/verifying parties...")
-// Try to create parties - if they exist, just get the existing ones
-val allParties = participant1.parties.list()
+println("👥 Creating parties...")
+// Canton 2.7.8 API - parties.enable() returns the PartyId directly
+val techBank = participant1.parties.enable("TechBank")
+println("✓ TechBank party created")
 
-val techBank = try {
-  participant1.parties.enable("TechBank")
-  println("✓ TechBank party created")
-} catch {
-  case e: Exception => {
-    println("⚠️  TechBank party already exists")
-    // Get existing party from list (parties.list returns tuples of (PartyId, participants))
-    allParties.find(_._1.toString.startsWith("TechBank")).get._1
-  }
-}
+val globalCorp = participant1.parties.enable("GlobalCorp")
+println("✓ GlobalCorp party created")
 
-val globalCorp = try {
-  participant1.parties.enable("GlobalCorp")
-  println("✓ GlobalCorp party created")
-} catch {
-  case e: Exception => {
-    println("⚠️  GlobalCorp party already exists")
-    allParties.find(_._1.toString.startsWith("GlobalCorp")).get._1
-  }
-}
-
-val retailFinance = try {
-  participant1.parties.enable("RetailFinance")
-  println("✓ RetailFinance party created")
-} catch {
-  case e: Exception => {
-    println("⚠️  RetailFinance party already exists")
-    allParties.find(_._1.toString.startsWith("RetailFinance")).get._1
-  }
-}
+val retailFinance = participant1.parties.enable("RetailFinance")
+println("✓ RetailFinance party created")
 
 println("")
 println("=== PARTY IDs (COPY THESE EXACTLY) ===")
-val techBankId = techBank.toProtoPrimitive
-val globalCorpId = globalCorp.toProtoPrimitive
-val retailFinanceId = retailFinance.toProtoPrimitive
-println("TECHBANK_PARTY_ID=" + techBankId)
-println("GLOBALCORP_PARTY_ID=" + globalCorpId)
-println("RETAILFINANCE_PARTY_ID=" + retailFinanceId)
+println("TECHBANK_PARTY_ID=" + techBank)
+println("GLOBALCORP_PARTY_ID=" + globalCorp)
+println("RETAILFINANCE_PARTY_ID=" + retailFinance)
 println("=== END PARTY IDs ===")
 println("")
 
 // Write to file for easy extraction
 val writer = new java.io.PrintWriter("/tmp/party-ids.env")
 try {
-  writer.println("TECHBANK_PARTY_ID=" + techBankId)
-  writer.println("GLOBALCORP_PARTY_ID=" + globalCorpId)
-  writer.println("RETAILFINANCE_PARTY_ID=" + retailFinanceId)
+  writer.println("TECHBANK_PARTY_ID=" + techBank)
+  writer.println("GLOBALCORP_PARTY_ID=" + globalCorp)
+  writer.println("RETAILFINANCE_PARTY_ID=" + retailFinance)
 } finally {
   writer.close()
 }
