@@ -46,14 +46,16 @@ router.get('/', validatePartyQuery, async (req, res) => {
  *   - receiver: Party display name
  *   - amount: Number (positive)
  *   - description: String (optional)
+ *   - rwaType: String (optional, e.g., "cash", "corporate_bonds")
+ *   - rwaDetails: String (optional, JSON string with RWA metadata)
  * 
  * Includes idempotency protection to prevent duplicate submissions
  */
 router.post('/', validatePartyNames, idempotencyMiddleware, async (req, res) => {
   try {
-    const { sender, receiver, amount, description } = req.body;
+    const { sender, receiver, amount, description, rwaType, rwaDetails } = req.body;
     
-    console.log(`POST /api/contracts - ${sender} → ${receiver}, $${amount}`);
+    console.log(`POST /api/contracts - ${sender} → ${receiver}, $${amount}${rwaType ? ` (${rwaType})` : ''}`);
     
     // Validate required fields
     if (!sender || !receiver || !amount) {
@@ -78,12 +80,14 @@ router.post('/', validatePartyNames, idempotencyMiddleware, async (req, res) => 
       });
     }
     
-    // Submit to Canton (sender signs)
+    // Submit to Canton (sender signs) with optional RWA fields
     const transaction = await ledgerClient.submitPaymentRequest(
       sender,
       receiver,
       numAmount,
-      description || ''
+      description || '',
+      rwaType,
+      rwaDetails
     );
     
     // Cache result for idempotency (prevents duplicate submissions)

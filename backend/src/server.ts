@@ -7,6 +7,7 @@ import cors from 'cors';
 import contractsRouter from './routes/contracts';
 import partiesRouter from './routes/parties';
 import eventsRouter from './routes/events';
+import adminRouter from './routes/admin';
 import { config } from './config';
 
 const app = express();
@@ -46,6 +47,9 @@ console.log('✓ /api/parties');
 
 app.use('/api/events', eventsRouter);
 console.log('✓ /api/events');
+
+app.use('/api/admin', adminRouter);
+console.log('✓ /api/admin');
 
 // Health check endpoint
 app.get('/health', (req, res) => {

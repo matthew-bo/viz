@@ -1,6 +1,7 @@
 import { useState, memo } from 'react';
 import { ArrowRight, Calendar, CheckCircle2, ChevronDown, ChevronUp, Hash, Loader2 } from 'lucide-react';
 import { Transaction } from '../types';
+import { useAppStore } from '../store/useAppStore';
 import StatusBadge from './StatusBadge';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 function TransactionCard({ transaction, selectedParty, onAccept }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
+  const { parties } = useAppStore();
 
   // Format amount with commas
   const formatAmount = (amount: string) => {
@@ -57,13 +59,13 @@ function TransactionCard({ transaction, selectedParty, onAccept }: Props) {
     }
   };
 
-  // Check which parties can see this transaction
+  // Check which parties can see this transaction (dynamic based on loaded parties)
   const getVisibilityIndicators = () => {
-    return [
-      { name: 'TechBank', canSee: transaction.senderDisplayName === 'TechBank' || transaction.receiverDisplayName === 'TechBank' },
-      { name: 'GlobalCorp', canSee: transaction.senderDisplayName === 'GlobalCorp' || transaction.receiverDisplayName === 'GlobalCorp' },
-      { name: 'RetailFinance', canSee: transaction.senderDisplayName === 'RetailFinance' || transaction.receiverDisplayName === 'RetailFinance' },
-    ];
+    return parties.map(party => ({
+      name: party.displayName,
+      canSee: transaction.senderDisplayName === party.displayName || 
+              transaction.receiverDisplayName === party.displayName
+    }));
   };
 
   return (

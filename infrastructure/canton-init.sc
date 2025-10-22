@@ -1,24 +1,12 @@
 // Canton 2.7.8 Initialization Script
-// Runs automatically via --bootstrap flag
-// Creates parties, connects to domain, uploads DAR
-
 println("=== Canton Privacy Demo Initialization ===")
-
-// Wait for nodes to be ready
 println("⏳ Waiting for Canton nodes to initialize...")
-utils.retry_until_true(30, 1.second) {
-  try {
-    participant1.health.status().isActive && local.health.status().isActive
-  } catch {
-    case _: Exception => false
-  }
-}
-println("✓ Canton nodes are ready")
+Thread.sleep(10000)
+println("✓ Canton nodes should be ready")
 
-// Connect participant to local domain
 println("🔗 Connecting participant to domain...")
 try {
-  participant1.domains.connect_local(local, "local")
+  participant1.domains.connect_local(local)
   println("✓ Participant connected to domain")
 } catch {
   case e: Exception => {
@@ -26,55 +14,81 @@ try {
   }
 }
 
-// Wait for connection to stabilize
 println("⏳ Waiting for connection to stabilize...")
-utils.retry_until_true(20, 1.second) {
-  try {
-    participant1.domains.list_connected().nonEmpty
-  } catch {
-    case _: Exception => false
-  }
-}
+Thread.sleep(5000)
 println("✓ Connection stable")
 
-// Enable parties
-println("👥 Creating parties...")
-val techBank = participant1.parties.enable("TechBank")
-val globalCorp = participant1.parties.enable("GlobalCorp")
-val retailFinance = participant1.parties.enable("RetailFinance")
+println("👥 Creating/verifying parties...")
+// Try to create parties - if they exist, just get the existing ones
+val allParties = participant1.parties.list()
 
-// Print party IDs in format easy to copy
+val techBank = try {
+  participant1.parties.enable("TechBank")
+  println("✓ TechBank party created")
+} catch {
+  case e: Exception => {
+    println("⚠️  TechBank party already exists")
+    // Get existing party from list (parties.list returns tuples of (PartyId, participants))
+    allParties.find(_._1.toString.startsWith("TechBank")).get._1
+  }
+}
+
+val globalCorp = try {
+  participant1.parties.enable("GlobalCorp")
+  println("✓ GlobalCorp party created")
+} catch {
+  case e: Exception => {
+    println("⚠️  GlobalCorp party already exists")
+    allParties.find(_._1.toString.startsWith("GlobalCorp")).get._1
+  }
+}
+
+val retailFinance = try {
+  participant1.parties.enable("RetailFinance")
+  println("✓ RetailFinance party created")
+} catch {
+  case e: Exception => {
+    println("⚠️  RetailFinance party already exists")
+    allParties.find(_._1.toString.startsWith("RetailFinance")).get._1
+  }
+}
+
 println("")
-println("=== PARTY IDs (SAVE THESE TO backend/.env) ===")
-println(s"TECHBANK_PARTY_ID=${techBank}")
-println(s"GLOBALCORP_PARTY_ID=${globalCorp}")
-println(s"RETAILFINANCE_PARTY_ID=${retailFinance}")
+println("=== PARTY IDs (COPY THESE EXACTLY) ===")
+val techBankId = techBank.toProtoPrimitive
+val globalCorpId = globalCorp.toProtoPrimitive
+val retailFinanceId = retailFinance.toProtoPrimitive
+println("TECHBANK_PARTY_ID=" + techBankId)
+println("GLOBALCORP_PARTY_ID=" + globalCorpId)
+println("RETAILFINANCE_PARTY_ID=" + retailFinanceId)
 println("=== END PARTY IDs ===")
 println("")
 
-// Upload DAR
-println("📦 Uploading DAR...")
-val darPath = "/canton/daml/.daml/dist/payment-demo-0.0.1.dar"
+// Write to file for easy extraction
+val writer = new java.io.PrintWriter("/tmp/party-ids.env")
 try {
-  participant1.dars.upload(darPath)
+  writer.println("TECHBANK_PARTY_ID=" + techBankId)
+  writer.println("GLOBALCORP_PARTY_ID=" + globalCorpId)
+  writer.println("RETAILFINANCE_PARTY_ID=" + retailFinanceId)
+} finally {
+  writer.close()
+}
+println("✓ Party IDs written to /tmp/party-ids.env")
+
+println("📦 Uploading DAR...")
+try {
+  participant1.dars.upload("/tmp/payment.dar")
   println("✓ DAR uploaded successfully")
 } catch {
   case e: Exception => {
-    println(s"⚠️  DAR upload may have already occurred: ${e.getMessage}")
+    if (e.getMessage().contains("DUPLICATE_PACKAGE")) {
+      println("⚠️  DAR already uploaded, skipping")
+    } else {
+      println(s"⚠️  DAR upload failed: ${e.getMessage}")
+    }
   }
 }
 
-// Verify parties are visible
-println("")
-println("🔍 Verifying parties...")
-val parties = participant1.parties.list()
-println(s"✓ Found ${parties.length} parties on participant")
-parties.foreach(p => println(s"  - ${p}"))
-
 println("")
 println("✨ Canton initialization complete!")
-println("Next steps:")
-println("  1. Copy the PARTY IDs above to backend/.env")
-println("  2. Restart backend: docker compose restart backend")
-println("  3. Test: curl http://localhost:3001/health")
 

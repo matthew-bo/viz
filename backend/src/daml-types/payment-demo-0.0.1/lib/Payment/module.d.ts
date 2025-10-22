@@ -17,13 +17,15 @@ export declare type Payment = {
   description: string;
   submittedAt: damlTypes.Time;
   committedAt: damlTypes.Time;
+  rwaType: damlTypes.Optional<string>;
+  rwaDetails: damlTypes.Optional<string>;
 };
 
 export declare interface PaymentInterface {
   Archive: damlTypes.Choice<Payment, pkgd14e08374fc7197d6a0de468c968ae8ba3aadbf9315476fd39071831f5923662.DA.Internal.Template.Archive, {}, undefined> & damlTypes.ChoiceFrom<damlTypes.Template<Payment, undefined>>;
 }
 export declare const Payment:
-  damlTypes.Template<Payment, undefined, 'fbc4ef35efbb9346932f8cbbeaebfb31062ae9c58252e12585b4886ea0039d76:Payment:Payment'> &
+  damlTypes.Template<Payment, undefined, 'c688c8bf67f387801bf06c305159c395dc96bb7aa2808d639af0995b31148557:Payment:Payment'> &
   damlTypes.ToInterface<Payment, never> &
   PaymentInterface;
 
@@ -61,6 +63,8 @@ export declare type PaymentRequest = {
   currency: string;
   description: string;
   submittedAt: damlTypes.Time;
+  rwaType: damlTypes.Optional<string>;
+  rwaDetails: damlTypes.Optional<string>;
 };
 
 export declare interface PaymentRequestInterface {
@@ -69,7 +73,7 @@ export declare interface PaymentRequestInterface {
   Accept: damlTypes.Choice<PaymentRequest, Accept, damlTypes.ContractId<Payment>, undefined> & damlTypes.ChoiceFrom<damlTypes.Template<PaymentRequest, undefined>>;
 }
 export declare const PaymentRequest:
-  damlTypes.Template<PaymentRequest, undefined, 'fbc4ef35efbb9346932f8cbbeaebfb31062ae9c58252e12585b4886ea0039d76:Payment:PaymentRequest'> &
+  damlTypes.Template<PaymentRequest, undefined, 'c688c8bf67f387801bf06c305159c395dc96bb7aa2808d639af0995b31148557:Payment:PaymentRequest'> &
   damlTypes.ToInterface<PaymentRequest, never> &
   PaymentRequestInterface;
 

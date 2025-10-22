@@ -129,28 +129,31 @@ Build a publicly accessible web application demonstrating Canton Network's priva
 
 ### 1.3 Technology Stack
 
-**Versions (ALL MUST MATCH):**
+**Versions (ACTUAL IMPLEMENTATION):**
 ```yaml
-Canton Community Edition: 2.9.0
-Daml SDK: 2.9.0
+Canton: 2.7.6 (canton-open-source:latest)
+Daml SDK: 2.7.6
 Protocol Version: 5 (auto-negotiated by Canton)
-@daml/ledger: ^2.9.0
-Node.js: 20 LTS
-TypeScript: 5.x
-React: 18.x
+@daml/ledger: ^2.7.6
+Node.js: 22.13.1
+TypeScript: 5.3.3
+React: 18.2.0
 ```
 
 **Stack:**
-- **Blockchain:** Canton Community Edition (Docker)
-- **Smart Contracts:** Daml 2.9.0
-- **Backend:** Node.js 20 + TypeScript + Express + SSE
-- **Frontend:** React 18 + TypeScript + TailwindCSS + EventSource
+- **Blockchain:** Canton 2.7.6 (Docker: canton-open-source:latest)
+- **Smart Contracts:** Daml 2.7.6
+- **Backend:** Node.js 22.13.1 + TypeScript 5.3.3 + Express 4.18.2 + SSE
+- **Frontend:** React 18.2.0 + TypeScript + Vite 5.0.8 + TailwindCSS 3.4.0
+- **State Management:** Zustand 5.0.8 ⭐
+- **Animations:** Framer Motion 12.23.24 ⭐
+- **Layout:** React Resizable Panels 3.0.6 ⭐
 - **Infrastructure:** Docker Compose (4 containers)
 - **Hosting:** Railway.app or Fly.io
 
 **Verification Commands:**
 ```bash
-docker run digitalasset/canton-community:2.9.0 --version
+docker run digitalasset/canton-open-source:latest --version
 daml version
 node --version
 ```
@@ -236,6 +239,52 @@ Step 4: Privacy Demonstration
 - Shows signature requirements visually
 - Proves backend can't auto-accept
 - Recruiter sees real blockchain workflow
+
+### 2.6 Real World Asset (RWA) Support ⭐ NEW
+
+**Canton Visualizer now includes comprehensive RWA tracking and visualization!**
+
+#### Supported Asset Types
+1. **💵 Cash** - Liquid currency
+2. **📈 Corporate Bonds** - Company debt securities  
+3. **💰 Treasury Bills** - Government short-term debt
+4. **📄 Commercial Paper** - Short-term unsecured promissory notes
+5. **📊 Equity** - Company stocks and shares
+6. **🏭 Commodities** - Physical goods (gold, oil, etc.)
+
+#### RWA Features
+
+**BusinessPanel - Portfolio Breakdown:**
+- Each business card shows expandable RWA portfolio
+- Visual breakdown by asset type with progress bars
+- Percentage calculations and color-coding
+- Real-time updates as transactions commit
+- Total value per RWA category
+
+**RWA Flow Diagram:**
+- Toggle between List view and RWA Flow view
+- Animated SVG visualization of asset flows
+- Grouped by asset type with color-coding
+- Volume and transaction count aggregation
+- Smooth particle animations showing flow direction
+
+**Filtering:**
+- Filter by business (BusinessPanel)
+- Filter by RWA type (in development)
+- Synchronizer timeline filtering
+
+**How to Use:**
+1. Create transaction with RWA type (dropdown in CREATE modal)
+2. View portfolio breakdown in BusinessPanel (left sidebar)
+3. Click "📊 Asset Portfolio" to expand
+4. Toggle to "RWA Flow" view in main content
+5. Filter transactions by business or asset type
+
+**Technical Implementation:**
+- RWA type stored in transaction payload
+- Portfolio calculated from committed transactions
+- Framer Motion for smooth animations
+- SVG-based flow diagrams for performance
 
 ---
 

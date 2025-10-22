@@ -1,32 +1,53 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Transaction, Party } from './types';
+import { Transaction } from './types';
 import { apiClient } from './api/client';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/Toast';
+import { useAppStore } from './store/useAppStore';
+import { addActivityLog } from './components/ActivityLog';
 import Header from './components/Header';
-import CantonExplainer from './components/CantonExplainer';
-import SystemStatus from './components/SystemStatus';
-import ActivityLog, { addActivityLog } from './components/ActivityLog';
-import ContractForm from './components/ContractForm';
-import PrivacyFilter from './components/PrivacyFilter';
-import TransactionGrid from './components/TransactionGrid';
+import { ResizableLayout } from './components/ResizableLayout';
+import { BusinessPanel } from './components/BusinessPanel';
+import { SynchronizerFooter } from './components/SynchronizerFooter';
+import { MainContent } from './components/MainContent';
+import { CreateModal } from './components/CreateModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 /**
- * Main App Component
- * Manages global state and SSE connection for real-time updates
+ * Main App Component - Redesigned with Resizable Layout & Zustand
+ * 
+ * New Architecture:
+ * - Zustand for global state management
+ * - Resizable panel layout
+ * - Modal-based transaction creation
+ * - Real-time SSE updates
  */
 function App() {
-  // State
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [selectedParty, setSelectedParty] = useState<string | null>(null);
-  const [parties, setParties] = useState<Party[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdateTime, setLastUpdateTime] = useState<Date>(new Date());
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [pendingSubmission, setPendingSubmission] = useState<{ sender: string; receiver: string; amount: number } | null>(null);
+  
+  // Use ref so SSE handler can access latest pendingSubmission value
+  const pendingSubmissionRef = useRef<{ sender: string; receiver: string; amount: number } | null>(null);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    pendingSubmissionRef.current = pendingSubmission;
+  }, [pendingSubmission]);
+  
+  // Zustand store
+  const {
+    transactions,
+    connectionStatus,
+    setTransactions,
+    setParties,
+    setConnectionStatus,
+    setSelectedTransaction,
+    addOrUpdateTransaction
+  } = useAppStore();
   
   // Toast notifications
   const { toasts, toast, removeToast } = useToast();
@@ -39,7 +60,7 @@ function App() {
         
         const [partiesList, txList] = await Promise.all([
           apiClient.getParties(),
-          apiClient.getTransactions({ limit: 50 })
+          apiClient.getTransactions({ limit: 100 }) // Increased limit for demo data
         ]);
         
         console.log('Loaded parties:', partiesList);
@@ -47,7 +68,6 @@ function App() {
         
         setParties(partiesList);
         setTransactions(txList);
-        setLastUpdateTime(new Date());
         setError(null);
       } catch (err: any) {
         console.error('Failed to load initial data:', err);
@@ -58,7 +78,7 @@ function App() {
     }
 
     loadInitialData();
-  }, []);
+  }, [setParties, setTransactions]);
 
   // Establish SSE connection for real-time updates
   useEffect(() => {
@@ -68,7 +88,7 @@ function App() {
 
     eventSource.onopen = () => {
       console.log('✓ SSE connected');
-      setIsConnected(true);
+      setConnectionStatus('connected');
       setError(null);
       toast.success('Connected to Canton Network');
       addActivityLog({
@@ -105,49 +125,20 @@ function App() {
             },
           });
           
-          setLastUpdateTime(new Date());
-          setTransactions((prev) => {
-            // Check if transaction exists (update by contractId)
-            const existingIndex = prev.findIndex(
-              (t) => t.contractId === tx.contractId
-            );
-
-            if (existingIndex !== -1) {
-              // Update existing transaction
-              console.log('Updating existing transaction');
-              const updated = [...prev];
-              updated[existingIndex] = tx;
-              return updated;
-            }
-
-            // If this is a committed Payment, remove the corresponding pending PaymentRequest
-            if (tx.status === 'committed') {
-              console.log('Committed Payment received - removing pending PaymentRequest');
-              const filteredPrev = prev.filter((t) => {
-                // Remove pending transactions that match this payment
-                const isMatchingPendingRequest = 
-                  t.status === 'pending' &&
-                  t.payload.sender === tx.payload.sender &&
-                  t.payload.receiver === tx.payload.receiver &&
-                  t.payload.amount === tx.payload.amount &&
-                  t.payload.currency === tx.payload.currency &&
-                  t.payload.description === tx.payload.description;
-                
-                if (isMatchingPendingRequest) {
-                  console.log('Removing pending PaymentRequest:', t.contractId);
-                }
-                
-                return !isMatchingPendingRequest;
-              });
-              
-              // Add the committed Payment
-              return [tx, ...filteredPrev];
-            }
-
-            // Add new transaction at beginning (for pending requests)
-            console.log('Adding new transaction');
-            return [tx, ...prev];
-          });
+          // Use Zustand's intelligent add/update logic
+          addOrUpdateTransaction(tx);
+          
+          // Auto-select if this matches a pending submission (use ref to get latest value)
+          const pending = pendingSubmissionRef.current;
+          if (pending && 
+              tx.senderDisplayName === pending.sender &&
+              tx.receiverDisplayName === pending.receiver &&
+              parseFloat(tx.payload.amount) === pending.amount) {
+            console.log('Auto-selecting newly created transaction:', tx.contractId);
+            setSelectedTransaction(tx);
+            setPendingSubmission(null); // Clear pending
+            toast.success('Transaction created! Viewing details...');
+          }
         }
       } catch (err) {
         console.error('Failed to parse SSE message:', err);
@@ -156,7 +147,7 @@ function App() {
 
     eventSource.onerror = (err) => {
       console.error('✗ SSE error:', err);
-      setIsConnected(false);
+      setConnectionStatus('disconnected');
       toast.error('Connection lost. Attempting to reconnect...');
       // EventSource automatically reconnects
     };
@@ -166,14 +157,16 @@ function App() {
       console.log('Closing SSE connection');
       eventSource.close();
     };
-  }, []);
+  }, []); // Empty deps - only run once on mount
 
-  // Handle form submission
+  // Handle form submission (with RWA fields)
   const handleSubmit = async (data: {
     sender: string;
     receiver: string;
     amount: number;
     description: string;
+    rwaType?: string;
+    rwaDetails?: string;
   }) => {
     try {
       console.log('Submitting transaction:', data);
@@ -184,38 +177,25 @@ function App() {
         details: {
           amount: data.amount,
           description: data.description,
+          rwaType: data.rwaType,
         },
       });
+      
+      // Track this submission to auto-select when it arrives via SSE
+      setPendingSubmission({
+        sender: data.sender,
+        receiver: data.receiver,
+        amount: data.amount
+      });
+      
       await apiClient.submitContract(data);
       toast.success('Payment request submitted successfully');
-      // No need to update state - SSE will push update
+      // Transaction will be auto-selected when it arrives via SSE
     } catch (err: any) {
       console.error('Failed to submit:', err);
       toast.error(err?.message || 'Failed to submit payment request');
-      throw err; // Re-throw for ContractForm to handle
-    }
-  };
-
-  // Handle accept button click
-  const handleAccept = async (contractId: string, receiver: string) => {
-    try {
-      console.log('Accepting transaction:', contractId, 'as', receiver);
-      addActivityLog({
-        level: 'info',
-        category: 'user',
-        message: `Accepting payment request as ${receiver}`,
-        details: {
-          contractId,
-          receiver,
-        },
-      });
-      await apiClient.acceptContract(contractId, receiver);
-      toast.success('Payment accepted successfully');
-      // No need to update state - SSE will push update
-    } catch (err: any) {
-      console.error('Failed to accept:', err);
-      toast.error(err?.message || 'Failed to accept payment');
-      throw err; // Re-throw for TransactionCard to handle
+      setPendingSubmission(null); // Clear on error
+      throw err; // Re-throw for CreateModal to handle
     }
   };
 
@@ -224,7 +204,7 @@ function App() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-canton-blue animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Loading Canton Network...
           </h2>
@@ -235,7 +215,7 @@ function App() {
   }
 
   // Error state
-  if (error && !isConnected && transactions.length === 0) {
+  if (error && connectionStatus === 'disconnected' && transactions.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
@@ -257,7 +237,7 @@ function App() {
             </div>
             <button
               onClick={() => window.location.reload()}
-              className="mt-6 w-full bg-canton-blue text-white px-6 py-3 rounded-lg font-semibold hover:bg-canton-blue-dark transition-colors"
+              className="mt-6 w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
             >
               Retry Connection
             </button>
@@ -267,62 +247,32 @@ function App() {
     );
   }
 
-  // Main app
+  // Main app with new layout
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className="h-screen flex flex-col bg-gray-50">
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
       
-      <Header isConnected={isConnected} />
-      <CantonExplainer />
+      {/* Header */}
+      <Header 
+        isConnected={connectionStatus === 'connected'} 
+        onCreateClick={() => setIsCreateModalOpen(true)}
+      />
 
-      <div className="container mx-auto px-4 py-8">
-        {/* System Status */}
-        <div className="mb-8">
-          <SystemStatus
-            isConnected={isConnected}
-            partyCount={parties.length}
-            transactionCount={transactions.length}
-            lastUpdateTime={lastUpdateTime}
-          />
-        </div>
-      </div>
+      {/* Main Resizable Layout */}
+      <ResizableLayout
+        leftPanel={<BusinessPanel />}
+        mainContent={<MainContent />}
+        footer={<SynchronizerFooter />}
+      />
 
-      <div className="container mx-auto px-4 py-8">
-        {/* Submit Form */}
-        <div className="mb-8">
-          <ContractForm parties={parties} onSubmit={handleSubmit} />
-        </div>
+      {/* Create Transaction Modal */}
+      <CreateModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSubmit={handleSubmit}
+      />
 
-        {/* Main Grid: Privacy Filter + Transactions */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <PrivacyFilter
-            parties={parties}
-            selectedParty={selectedParty}
-            onChange={setSelectedParty}
-          />
-
-          <TransactionGrid
-            transactions={transactions}
-            selectedParty={selectedParty}
-            onAccept={handleAccept}
-          />
-        </div>
-
-        {/* Activity Log */}
-        <div className="mt-8">
-          <ActivityLog maxEntries={200} />
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="bg-white border-t mt-12">
-        <div className="container mx-auto px-4 py-6">
-          <p className="text-center text-sm text-gray-600">
-            Built with Canton Community Edition 2.7.6 • Daml • React • TypeScript
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

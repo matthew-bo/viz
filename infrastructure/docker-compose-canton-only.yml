@@ -1,0 +1,46 @@
+version: '3.8'
+
+# Canton-Only Setup for Local Development
+# Run backend and frontend with npm run dev locally
+
+services:
+  # Single Canton node (3 participants + local domain)
+  canton:
+    image: digitalasset/canton-open-source:2.7.8
+    container_name: canton-dev
+    ports:
+      - "5011:5011"  # Participant 1 Ledger API
+      - "5012:5012"  # Participant 1 Admin API
+      - "5021:5021"  # Participant 2 Ledger API
+      - "5022:5022"  # Participant 2 Admin API
+      - "5031:5031"  # Participant 3 Ledger API
+      - "5032:5032"  # Participant 3 Admin API
+      - "5018:5018"  # Domain Public API
+      - "5019:5019"  # Domain Admin API
+      - "7011:7011"  # HTTP JSON API - Participant 1
+      - "7021:7021"  # HTTP JSON API - Participant 2
+      - "7031:7031"  # HTTP JSON API - Participant 3
+    volumes:
+      # Configuration file
+      - ./canton-simple.conf:/canton/canton-simple.conf:ro
+      # Initialization script
+      - ./canton-init.sc:/canton/canton-init.sc:ro
+      # DAR file
+      - ../daml/.daml/dist/payment-demo-0.0.1.dar:/tmp/payment.dar:ro
+      # Persistent storage
+      - canton-dev-data:/canton-data
+    command: >
+      daemon 
+      --config /canton/canton-simple.conf
+      --log-level-root=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7011/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  canton-dev-data:
+    driver: local
+

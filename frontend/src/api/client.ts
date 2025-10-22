@@ -50,13 +50,15 @@ export const apiClient = {
   },
   
   /**
-   * Submit new PaymentRequest
+   * Submit new PaymentRequest (with optional RWA fields)
    */
   async submitContract(data: {
     sender: string;
     receiver: string;
     amount: number;
     description: string;
+    rwaType?: string;
+    rwaDetails?: string;
   }): Promise<Transaction> {
     try {
       const response = await fetch(`${API_BASE}/api/contracts`, {
@@ -76,6 +78,7 @@ export const apiClient = {
         sender: data.sender, 
         receiver: data.receiver, 
         amount: data.amount,
+        rwaType: data.rwaType,
         contractId: result.contractId 
       });
       return result;
@@ -153,6 +156,54 @@ export const apiClient = {
       return data;
     } catch (err) {
       logApiCall('GET', '/health', false, { error: err instanceof Error ? err.message : 'Unknown error' });
+      throw err;
+    }
+  },
+
+  /**
+   * Seed demo data - generate realistic transactions for testing
+   */
+  async seedDemoData(count: number = 60): Promise<{ success: boolean; message: string; count: number }> {
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/seed-demo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to seed demo data' }));
+        logApiCall('POST', '/api/admin/seed-demo', false, { count, error: error.error });
+        throw new Error(error.error || 'Failed to seed demo data');
+      }
+      
+      const data = await response.json();
+      logApiCall('POST', '/api/admin/seed-demo', true, { count: data.count });
+      return data;
+    } catch (err) {
+      logApiCall('POST', '/api/admin/seed-demo', false, { count, error: err instanceof Error ? err.message : 'Unknown error' });
+      throw err;
+    }
+  },
+
+  /**
+   * Get aggregated metrics
+   */
+  async getMetrics(): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/metrics`);
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to fetch metrics' }));
+        logApiCall('GET', '/api/admin/metrics', false, { error: error.error });
+        throw new Error(error.error || 'Failed to fetch metrics');
+      }
+      
+      const data = await response.json();
+      logApiCall('GET', '/api/admin/metrics', true, { total: data.total });
+      return data;
+    } catch (err) {
+      logApiCall('GET', '/api/admin/metrics', false, { error: err instanceof Error ? err.message : 'Unknown error' });
       throw err;
     }
   }

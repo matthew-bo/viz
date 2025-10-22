@@ -50,19 +50,19 @@ export class CantonLedgerClient {
         displayName: 'TechBank',
         partyId: process.env.TECHBANK_PARTY_ID!,
         ledgerApiUrl: process.env.PARTICIPANT1_LEDGER_API!,
-        ledgerId: 'participant1'
+        ledgerId: 'participant1'  // Single-node: all parties on participant1
       },
       {
         displayName: 'GlobalCorp',
         partyId: process.env.GLOBALCORP_PARTY_ID!,
         ledgerApiUrl: process.env.PARTICIPANT2_LEDGER_API!,
-        ledgerId: 'participant2'
+        ledgerId: 'participant1'  // Single-node: all parties on participant1
       },
       {
         displayName: 'RetailFinance',
         partyId: process.env.RETAILFINANCE_PARTY_ID!,
         ledgerApiUrl: process.env.PARTICIPANT3_LEDGER_API!,
-        ledgerId: 'participant3'
+        ledgerId: 'participant1'  // Single-node: all parties on participant1
       }
     ];
     
@@ -123,9 +123,11 @@ export class CantonLedgerClient {
     senderName: string,
     receiverName: string,
     amount: number,
-    description: string
+    description: string,
+    rwaType?: string,
+    rwaDetails?: string
   ): Promise<CantonTransaction> {
-    console.log(`Submitting PaymentRequest: ${senderName} → ${receiverName}, $${amount}`);
+    console.log(`Submitting PaymentRequest: ${senderName} → ${receiverName}, $${amount}${rwaType ? ` (${rwaType})` : ''}`);
     
     // Get sender's ledger connection
     const senderLedger = this.ledgers.get(senderName);
@@ -145,7 +147,9 @@ export class CantonLedgerClient {
         amount: amount.toString(),
         currency: 'USD',
         description: description,
-        submittedAt: new Date().toISOString()
+        submittedAt: new Date().toISOString(),
+        rwaType: rwaType || null,
+        rwaDetails: rwaDetails || null
       });
       
       console.log(`✓ PaymentRequest created: ${result.contractId}`);

@@ -1,83 +1,73 @@
 import { memo } from 'react';
 import { Inbox } from 'lucide-react';
-import { Transaction } from '../types';
+import { motion } from 'framer-motion';
+import { useAppStore } from '../store/useAppStore';
+import { apiClient } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import TransactionCard from './TransactionCard';
-
-interface Props {
-  transactions: Transaction[];
-  selectedParty: string | null;
-  onAccept: (contractId: string, receiver: string) => Promise<void>;
-}
 
 /**
  * TransactionGrid - Display grid of transactions with privacy filtering
- * Filters transactions based on selected party's visibility
+ * Now uses Zustand for state management
  */
-function TransactionGrid({ transactions, selectedParty, onAccept }: Props) {
-  // Filter transactions based on privacy (party visibility)
-  const filteredTransactions = transactions.filter((tx) => {
-    if (!selectedParty) return true; // Show all if no filter
+function TransactionGrid() {
+  const { getFilteredTransactions, selectedBusiness, setSelectedTransaction } = useAppStore();
+  const { toast } = useToast();
+  
+  const transactions = getFilteredTransactions();
 
-    // Party can see if they're sender or receiver
-    return (
-      tx.senderDisplayName === selectedParty ||
-      tx.receiverDisplayName === selectedParty
-    );
-  });
-
-  // Sort by record time (newest first)
-  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
-    return new Date(b.recordTime).getTime() - new Date(a.recordTime).getTime();
-  });
+  // Handle accept button click
+  const handleAccept = async (contractId: string, receiver: string) => {
+    try {
+      console.log('Accepting transaction:', contractId, 'as', receiver);
+      await apiClient.acceptContract(contractId, receiver);
+      toast.success('Payment accepted successfully');
+      // SSE will push the update
+    } catch (err: any) {
+      console.error('Failed to accept:', err);
+      toast.error(err?.message || 'Failed to accept payment');
+      throw err;
+    }
+  };
 
   return (
-    <div className="lg:col-span-3">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">
-          Transactions
-          <span className="ml-2 text-sm font-normal text-gray-500" role="status" aria-live="polite">
-            ({sortedTransactions.length} visible)
-          </span>
-        </h2>
-        {selectedParty && (
-          <p className="text-sm text-gray-600 mt-1" role="status" aria-live="polite">
-            Viewing as <strong className="text-canton-blue">{selectedParty}</strong>
-          </p>
-        )}
-      </div>
-
+    <div className="h-full overflow-auto p-6">
       {/* Empty State */}
-      {sortedTransactions.length === 0 && (
-        <div className="bg-white rounded-xl shadow-lg p-12 text-center" role="status">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-            <Inbox className="w-8 h-8 text-gray-400" aria-hidden="true" />
+      {transactions.length === 0 && (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+              <Inbox className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              No transactions to display
+            </h3>
+            <p className="text-gray-600 max-w-md mx-auto">
+              {selectedBusiness
+                ? `${selectedBusiness} has no visible transactions. Try submitting a new payment request.`
+                : 'No transactions found. Click CREATE to submit a payment request.'}
+            </p>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            No transactions to display
-          </h3>
-          <p className="text-gray-600 max-w-md mx-auto">
-            {selectedParty
-              ? `${selectedParty} has no visible transactions. Try submitting a new payment request or select a different party.`
-              : 'No transactions found. Start by submitting a payment request above.'}
-          </p>
         </div>
       )}
 
       {/* Transaction Cards Grid */}
-      {sortedTransactions.length > 0 && (
-        <div 
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6"
-          role="list"
-          aria-label="Transaction list"
-        >
-          {sortedTransactions.map((transaction) => (
-            <TransactionCard
+      {transactions.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {transactions.map((transaction, index) => (
+            <motion.div
               key={transaction.contractId}
-              transaction={transaction}
-              selectedParty={selectedParty}
-              onAccept={onAccept}
-            />
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              onClick={() => setSelectedTransaction(transaction)}
+            >
+              <TransactionCard
+                transaction={transaction}
+                selectedParty={selectedBusiness}
+                onAccept={handleAccept}
+              />
+            </motion.div>
           ))}
         </div>
       )}

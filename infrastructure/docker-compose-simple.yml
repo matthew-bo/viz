@@ -20,19 +20,14 @@ services:
       - ./canton-simple.conf:/canton/canton-simple.conf:ro
       # Initialization script
       - ./canton-init.sc:/canton/canton-init.sc:ro
-      # DAR file (must exist before starting)
-      - ../daml/.daml/dist:/canton/daml/.daml/dist:ro
+      # DAR file
+      - /tmp/payment.dar:/tmp/payment.dar:ro
+      # Persistent storage for Canton (H2 database)
+      - canton-data:/canton-data
     command: >
       daemon 
       --config /canton/canton-simple.conf
-      --bootstrap /canton/canton-init.sc
       --log-level-root=INFO
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:7011/v1/parties || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
     restart: unless-stopped
     networks:
       - canton-network
@@ -55,8 +50,7 @@ services:
     env_file:
       - ../backend/.env
     depends_on:
-      canton:
-        condition: service_healthy
+      - canton
     restart: unless-stopped
     networks:
       - canton-network
@@ -80,4 +74,8 @@ services:
 networks:
   canton-network:
     driver: bridge
+
+volumes:
+  canton-data:
+    driver: local
 

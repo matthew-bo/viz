@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useCallback } from 'react';
 import { Download, Activity, Filter, X, Clock, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { registerLogs } from '../utils/activityLogUtils';
 
 export interface LogEntry {
   id: string;
@@ -41,6 +42,8 @@ function ActivityLog({ maxEntries = 100 }: Props) {
   // Expose addLog function globally for use across app
   useEffect(() => {
     (window as any).addActivityLog = addLog;
+    // Register logs with utility for Header access
+    registerLogs(logs, addLog);
     
     // Add initial log
     addLog({
@@ -52,7 +55,7 @@ function ActivityLog({ maxEntries = 100 }: Props) {
     return () => {
       delete (window as any).addActivityLog;
     };
-  }, [addLog]);
+  }, [addLog, logs]);
 
   // Filter logs
   const filteredLogs = logs.filter((log) => {
@@ -323,5 +326,6 @@ export const addActivityLog = (entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
     (window as any).addActivityLog(entry);
   }
 };
+
 
 

@@ -9,6 +9,8 @@ template PaymentRequest
     currency: Text
     description: Text
     submittedAt: Time
+    rwaType: Optional Text        -- RWA asset type
+    rwaDetails: Optional Text     -- JSON string with RWA metadata
   where
     signatory sender      -- Only sender signs initially
     observer receiver     -- Receiver can see but hasn't signed
@@ -26,6 +28,8 @@ template PaymentRequest
           description = description
           submittedAt = submittedAt
           committedAt = now
+          rwaType = rwaType
+          rwaDetails = rwaDetails
     
     -- Receiver can reject the payment request
     choice Reject : ()
@@ -43,6 +47,8 @@ template Payment
     description: Text
     submittedAt: Time    -- When request was created
     committedAt: Time    -- When receiver accepted
+    rwaType: Optional Text        -- RWA asset type
+    rwaDetails: Optional Text     -- JSON string with RWA metadata
   where
     signatory sender, receiver  -- Both parties have signed
     

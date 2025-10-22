@@ -18,6 +18,8 @@ export interface CantonTransaction {
     description: string;        // User-provided text
     submittedAt: string;        // ISO timestamp
     committedAt?: string;       // ISO timestamp (only for Payment template)
+    rwaType?: string;           // RWA asset type (optional)
+    rwaDetails?: string;        // JSON string with RWA metadata (optional)
   };
   
   // Privacy information (from Canton)
