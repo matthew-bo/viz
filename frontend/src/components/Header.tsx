@@ -1,27 +1,57 @@
 import { memo, useState, useEffect, useRef } from 'react';
-import { Wifi, WifiOff, Hexagon, Plus, ChevronDown, FileJson, FileSpreadsheet } from 'lucide-react';
+import { Wifi, WifiOff, Hexagon, Plus, ChevronDown, FileJson, FileSpreadsheet, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { exportLogsAsJSON, exportLogsAsCSV } from '../utils/activityLogUtils';
 import { useAppStore } from '../store/useAppStore';
+import { apiClient } from '../api/client';
 
 interface Props {
   isConnected: boolean;
   onCreateClick: () => void;
 }
 
+interface HealthData {
+  status: 'healthy' | 'degraded' | 'down';
+  services: {
+    api: { status: string; message: string };
+    canton: { status: string; message: string };
+    inventory: { status: string; message: string };
+    exchanges: { status: string; message: string };
+  };
+}
+
 /**
- * Header - App header with branding, CREATE button, and health status
+ * Header - App header with branding, CREATE button, and enhanced health monitoring
  */
 function Header({ isConnected, onCreateClick }: Props) {
   const [showHealthDropdown, setShowHealthDropdown] = useState(false);
+  const [healthData, setHealthData] = useState<HealthData | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { transactions, parties } = useAppStore();
 
-  const healthItems = [
-    { label: 'Backend API', status: 'healthy', url: '/health' },
-    { label: 'Canton Network', status: isConnected ? 'healthy' : 'connecting', url: null },
-    { label: 'SSE Stream', status: isConnected ? 'connected' : 'disconnected', url: null }
-  ];
+  // Fetch health data periodically
+  useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const health = await apiClient.healthCheck();
+        setHealthData(health);
+      } catch (error) {
+        setHealthData({
+          status: 'down',
+          services: {
+            api: { status: 'down', message: 'Backend unreachable' },
+            canton: { status: 'unknown', message: 'Not checked' },
+            inventory: { status: 'unknown', message: 'Not checked' },
+            exchanges: { status: 'unknown', message: 'Not checked' },
+          }
+        });
+      }
+    };
+
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   const stats = {
     total: transactions.length,
@@ -130,25 +160,45 @@ function Header({ isConnected, onCreateClick }: Props) {
                       <div className="font-semibold text-gray-800 text-sm">System Health</div>
                     </div>
                     
-                    {/* Health Status */}
+                    {/* Detailed Health Status */}
                     <div className="p-2 border-b border-gray-200">
-                      {healthItems.map((item, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 rounded"
-                        >
-                          <span className="text-sm text-gray-700">{item.label}</span>
-                          <span className={`
-                            text-xs font-medium px-2 py-1 rounded-full
-                            ${item.status === 'healthy' || item.status === 'connected'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-yellow-100 text-yellow-700'
-                            }
-                          `}>
-                            {item.status}
-                          </span>
-                        </div>
-                      ))}
+                      {healthData && (
+                        <>
+                          {/* Backend API */}
+                          <HealthStatusRow
+                            label="Backend API"
+                            status={healthData.services.api.status}
+                            message={healthData.services.api.message}
+                          />
+                          {/* Canton Network */}
+                          <HealthStatusRow
+                            label="Canton Network"
+                            status={healthData.services.canton.status}
+                            message={healthData.services.canton.message}
+                          />
+                          {/* Inventory Service */}
+                          <HealthStatusRow
+                            label="Inventory Service"
+                            status={healthData.services.inventory.status}
+                            message={healthData.services.inventory.message}
+                          />
+                          {/* Exchange Service */}
+                          <HealthStatusRow
+                            label="Exchange Service"
+                            status={healthData.services.exchanges.status}
+                            message={healthData.services.exchanges.message}
+                          />
+                          {/* SSE Stream */}
+                          <HealthStatusRow
+                            label="SSE Stream"
+                            status={isConnected ? 'healthy' : 'down'}
+                            message={isConnected ? 'Real-time updates active' : 'Reconnecting...'}
+                          />
+                        </>
+                      )}
+                      {!healthData && (
+                        <div className="px-3 py-2 text-sm text-gray-500">Loading health status...</div>
+                      )}
                     </div>
 
                     {/* Statistics */}
@@ -209,6 +259,40 @@ function Header({ isConnected, onCreateClick }: Props) {
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * HealthStatusRow - Helper component for displaying individual service health
+ */
+function HealthStatusRow({ label, status, message }: { label: string; status: string; message: string }) {
+  const getStatusIcon = () => {
+    if (status === 'healthy') return <CheckCircle className="w-4 h-4 text-green-600" />;
+    if (status === 'degraded') return <AlertCircle className="w-4 h-4 text-yellow-600" />;
+    if (status === 'down') return <XCircle className="w-4 h-4 text-red-600" />;
+    return <AlertCircle className="w-4 h-4 text-gray-400" />; // unknown
+  };
+
+  const getStatusColor = () => {
+    if (status === 'healthy') return 'bg-green-100 text-green-700';
+    if (status === 'degraded') return 'bg-yellow-100 text-yellow-700';
+    if (status === 'down') return 'bg-red-100 text-red-700';
+    return 'bg-gray-100 text-gray-600'; // unknown
+  };
+
+  return (
+    <div className="flex items-start justify-between px-3 py-2 hover:bg-gray-50 rounded">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          {getStatusIcon()}
+          <span className="text-sm font-medium text-gray-700">{label}</span>
+        </div>
+        <span className="text-xs text-gray-500 mt-0.5 block">{message}</span>
+      </div>
+      <span className={`text-xs font-medium px-2 py-1 rounded-full ml-2 ${getStatusColor()}`}>
+        {status}
+      </span>
+    </div>
   );
 }
 

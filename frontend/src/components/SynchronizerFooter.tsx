@@ -5,6 +5,7 @@ import { Transaction } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/useToast';
+import { isExchangeTransaction } from '../utils/exchangeAdapter';
 
 /**
  * SynchronizerFooter - Horizontal timeline of smart contracts
@@ -46,7 +47,7 @@ export const SynchronizerFooter: React.FC = () => {
   const committedTxs = filteredTransactions.filter(tx => tx.status === 'committed');
   const pendingTxs = filteredTransactions.filter(tx => tx.status === 'pending');
 
-  // Handle accept action from contract block
+  // Handle accept action from contract block (works for both Canton transactions and exchanges)
   const handleAccept = async (contractId: string) => {
     try {
       // Find the transaction to get receiver name
@@ -56,17 +57,30 @@ export const SynchronizerFooter: React.FC = () => {
         return;
       }
       
-      toast.info('Accepting transaction...');
-      await apiClient.acceptContract(contractId, tx.receiverDisplayName);
-      toast.success('✅ Transaction accepted! View updated in timeline.');
+      // Check if this is an exchange or a Canton transaction
+      const isExchange = isExchangeTransaction(tx);
+      
+      if (isExchange) {
+        // Handle exchange acceptance
+        toast.info('Accepting exchange...');
+        await apiClient.acceptExchange(contractId, tx.payload.receiver);
+        toast.success('✅ Exchange accepted! Assets transferred.');
+      } else {
+        // Handle Canton transaction acceptance
+        toast.info('Accepting transaction...');
+        await apiClient.acceptContract(contractId, tx.receiverDisplayName);
+        toast.success('✅ Transaction accepted! View updated in timeline.');
+      }
       
       // Auto-select the accepted transaction to show details
-      setSelectedTransaction(tx);
+      setTimeout(() => {
+        setSelectedTransaction(tx);
+      }, 2000);
       
       // Transaction will update via SSE
     } catch (error) {
-      console.error('Failed to accept transaction:', error);
-      toast.error('Failed to accept transaction');
+      console.error('Failed to accept:', error);
+      toast.error(`Failed to accept ${isExchangeTransaction(transactions.find(t => t.contractId === contractId)!) ? 'exchange' : 'transaction'}`);
     }
   };
 

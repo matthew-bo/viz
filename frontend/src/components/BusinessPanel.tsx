@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Building2, TrendingUp } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { formatCurrency, formatRWAType } from '../utils/formatters';
+import { apiClient } from '../api/client';
+import { PartyInventory } from '../types';
 
 /**
  * BusinessPanel - Left sidebar showing party/business cards with metrics
@@ -16,20 +18,20 @@ import { formatCurrency, formatRWAType } from '../utils/formatters';
 
 // Business-specific icons and styles
 const BUSINESS_CONFIGS: Record<string, { icon: string; emoji: string; gradient: string }> = {
-  'AssetOracle': { 
-    icon: '🏛️', 
-    emoji: '📊',
+  'TechBank': { 
+    icon: '🏦', 
+    emoji: '💻',
     gradient: 'from-blue-500/10 to-blue-600/5' 
   },
-  'RetailChain': { 
-    icon: '🏪', 
-    emoji: '🛍️',
-    gradient: 'from-purple-500/10 to-purple-600/5' 
-  },
-  'WholesaleFinance': { 
-    icon: '🏢', 
-    emoji: '💼',
+  'GlobalCorp': { 
+    icon: '🌍', 
+    emoji: '🏢',
     gradient: 'from-green-500/10 to-green-600/5' 
+  },
+  'RetailFinance': { 
+    icon: '💼', 
+    emoji: '📊',
+    gradient: 'from-amber-500/10 to-amber-600/5' 
   },
   'default': { 
     icon: '🏦', 
@@ -55,11 +57,41 @@ export const BusinessPanel: React.FC = () => {
     selectedBusiness, 
     setSelectedBusiness,
     getMetricsForParty,
-    transactions
+    transactions,
+    setSelectedAsset
   } = useAppStore();
 
   // Track which party's RWA portfolio is expanded
   const [expandedRWA, setExpandedRWA] = useState<string | null>(null);
+  
+  // Track which party's inventory is expanded
+  const [expandedInventory, setExpandedInventory] = useState<string | null>(null);
+  
+  // Track view mode for assets (compact = just names, detailed = full info)
+  const [compactView, setCompactView] = useState<boolean>(true);
+  
+  // Store inventories
+  const [inventories, setInventories] = useState<Map<string, PartyInventory>>(new Map());
+  
+  // Fetch inventories on mount
+  useEffect(() => {
+    async function loadInventories() {
+      try {
+        const allInventories = await apiClient.getAllInventories();
+        const inventoryMap = new Map<string, PartyInventory>();
+        allInventories.forEach(inv => {
+          inventoryMap.set(inv.partyId, inv);
+        });
+        setInventories(inventoryMap);
+      } catch (error) {
+        console.error('Failed to load inventories:', error);
+      }
+    }
+    
+    if (parties.length > 0) {
+      loadInventories();
+    }
+  }, [parties]);
 
   const handlePartyClick = (partyName: string) => {
     // Toggle selection: if already selected, deselect
@@ -285,6 +317,337 @@ export const BusinessPanel: React.FC = () => {
                                 </div>
                               );
                             })}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })()}
+
+                {/* Inventory Section */}
+                {(() => {
+                  const inventory = inventories.get(party.partyId);
+                  const isExpanded = expandedInventory === party.displayName;
+                  const hasAssets = inventory && (inventory.realEstateAssets.length > 0 || inventory.privateEquityAssets.length > 0);
+
+                  if (!inventory) return null;
+
+                  const totalAssets = inventory.realEstateAssets.length + 
+                                       inventory.privateEquityAssets.length +
+                                       inventory.escrowedRealEstateAssets.length +
+                                       inventory.escrowedPrivateEquityAssets.length;
+                  
+                  return (
+                    <div className="mt-4 pt-4 border-t border-gray-200/50">
+                      {/* Enhanced Header with Asset Count */}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedInventory(isExpanded ? null : party.displayName);
+                        }}
+                        className="flex items-center justify-between p-2.5 bg-gray-50 hover:bg-gray-100 rounded-lg cursor-pointer transition-all group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg transition-transform group-hover:scale-110 ${isExpanded ? 'bg-blue-100' : 'bg-white border-2 border-gray-200'}`}>
+                            🏦
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-gray-800">Asset Inventory</div>
+                            <div className="text-xs text-gray-500">
+                              {totalAssets} {totalAssets === 1 ? 'asset' : 'assets'}
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      </div>
+
+                      {/* Cash Balance - Always Visible */}
+                      <div className="mt-2 space-y-2">
+                        {/* Available Cash */}
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-green-800 flex items-center gap-1.5">
+                              <span>💵</span>
+                              <span>Available Cash</span>
+                            </span>
+                            <span className="text-sm font-bold text-green-900">
+                              {formatCurrency(inventory.cash)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Escrowed Cash - Only show if non-zero */}
+                        {inventory.escrowedCash > 0 && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-amber-800 flex items-center gap-1.5">
+                                <span>🔒</span>
+                                <span>In Escrow</span>
+                              </span>
+                              <span className="text-sm font-bold text-amber-900">
+                                {formatCurrency(inventory.escrowedCash)}
+                              </span>
+                            </div>
+                            <div className="text-xs text-amber-600 mt-1">
+                              Locked in pending exchanges
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <AnimatePresence>
+                        {isExpanded && hasAssets && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="mt-3"
+                          >
+                            {/* View Toggle */}
+                            <div className="flex items-center justify-between mb-2 px-1">
+                              <span className="text-xs font-semibold text-gray-600">View Mode</span>
+                              <div className="flex gap-1 bg-gray-100 rounded-md p-0.5">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCompactView(true);
+                                  }}
+                                  className={`px-2 py-1 text-xs font-medium rounded transition-all ${
+                                    compactView 
+                                      ? 'bg-white text-gray-900 shadow-sm' 
+                                      : 'text-gray-600 hover:text-gray-900'
+                                  }`}
+                                >
+                                  Compact
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCompactView(false);
+                                  }}
+                                  className={`px-2 py-1 text-xs font-medium rounded transition-all ${
+                                    !compactView 
+                                      ? 'bg-white text-gray-900 shadow-sm' 
+                                      : 'text-gray-600 hover:text-gray-900'
+                                  }`}
+                                >
+                                  Detailed
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Scrollable Container for Assets */}
+                            <div className="max-h-96 overflow-y-auto pr-1 space-y-2.5 custom-scrollbar"
+                                 style={{ scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F1F5F9' }}
+                            >
+                            {/* Real Estate Assets */}
+                            {inventory.realEstateAssets.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 mb-2">
+                                  <Building2 className="w-3.5 h-3.5" />
+                                  <span>Real Estate ({inventory.realEstateAssets.length})</span>
+                                </div>
+                                {compactView ? (
+                                  /* Compact View - Grid */
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    {inventory.realEstateAssets.map((asset) => (
+                                      <motion.button
+                                        key={asset.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedAsset(asset);
+                                        }}
+                                        whileHover={{ scale: 1.03 }}
+                                        whileTap={{ scale: 0.97 }}
+                                        className="bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-400 rounded-md p-2 text-left transition-all group"
+                                      >
+                                        <div className="text-xs font-semibold text-blue-900 truncate">
+                                          {asset.name}
+                                        </div>
+                                        <div className="text-xs text-blue-600 mt-0.5 flex items-center gap-1">
+                                          <span className="opacity-60 group-hover:opacity-100 transition-opacity">🔍</span>
+                                          <span className="truncate">{formatCurrency(asset.value)}</span>
+                                        </div>
+                                      </motion.button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  /* Detailed View - Full Cards */
+                                  <div className="space-y-1.5">
+                                    {inventory.realEstateAssets.map((asset) => (
+                                      <motion.div 
+                                        key={asset.id} 
+                                        className="bg-blue-50/70 backdrop-blur-sm rounded-lg p-2 border border-blue-200/50 cursor-pointer
+                                                 hover:bg-blue-100/80 hover:border-blue-300 transition-all hover:shadow-md"
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedAsset(asset);
+                                        }}
+                                      >
+                                        <div className="text-xs font-semibold text-blue-900">
+                                          {asset.name} 🔍
+                                        </div>
+                                        <div className="text-xs text-blue-700 mt-0.5">
+                                          📍 {asset.location}
+                                        </div>
+                                        <div className="mt-1">
+                                          <div className="text-xs text-blue-600 opacity-70">Market Value</div>
+                                          <div className="text-xs font-bold text-blue-900">
+                                            {formatCurrency(asset.value)}
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Private Equity Assets */}
+                            {inventory.privateEquityAssets.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 mb-2">
+                                  <TrendingUp className="w-3.5 h-3.5" />
+                                  <span>Private Equity ({inventory.privateEquityAssets.length})</span>
+                                </div>
+                                {compactView ? (
+                                  /* Compact View - Grid */
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    {inventory.privateEquityAssets.map((asset) => (
+                                      <motion.button
+                                        key={asset.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedAsset(asset);
+                                        }}
+                                        whileHover={{ scale: 1.03 }}
+                                        whileTap={{ scale: 0.97 }}
+                                        className="bg-purple-50 hover:bg-purple-100 border border-purple-200 hover:border-purple-400 rounded-md p-2 text-left transition-all group"
+                                      >
+                                        <div className="text-xs font-semibold text-purple-900 truncate">
+                                          {asset.name}
+                                        </div>
+                                        <div className="text-xs text-purple-600 mt-0.5 flex items-center gap-1">
+                                          <span className="opacity-60 group-hover:opacity-100 transition-opacity">🔍</span>
+                                          <span className="truncate">{formatCurrency(asset.valuation)}</span>
+                                        </div>
+                                      </motion.button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  /* Detailed View - Full Cards */
+                                  <div className="space-y-1.5">
+                                    {inventory.privateEquityAssets.map((asset) => (
+                                      <motion.div 
+                                        key={asset.id} 
+                                        className="bg-purple-50/70 backdrop-blur-sm rounded-lg p-2 border border-purple-200/50 cursor-pointer
+                                                 hover:bg-purple-100/80 hover:border-purple-300 transition-all hover:shadow-md"
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedAsset(asset);
+                                        }}
+                                      >
+                                        <div className="text-xs font-semibold text-purple-900">
+                                          {asset.name} 🔍
+                                        </div>
+                                        <div className="text-xs text-purple-700 mt-0.5">
+                                          🏢 {asset.industry}
+                                        </div>
+                                        <div className="mt-1">
+                                          <div className="text-xs text-purple-600 opacity-70">Valuation</div>
+                                          <div className="text-xs font-bold text-purple-900">
+                                            {formatCurrency(asset.valuation)}
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Escrowed Real Estate Assets */}
+                            {inventory.escrowedRealEstateAssets.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-amber-200">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 mb-2">
+                                  <span>🔒</span>
+                                  <Building2 className="w-3.5 h-3.5" />
+                                  <span>Real Estate In Escrow ({inventory.escrowedRealEstateAssets.length})</span>
+                                </div>
+                                <div className="space-y-1.5">
+                                  {inventory.escrowedRealEstateAssets.map((asset) => (
+                                    <div 
+                                      key={asset.id} 
+                                      className="bg-amber-50/70 backdrop-blur-sm rounded-lg p-2 border-2 border-amber-300 relative"
+                                    >
+                                      <div className="absolute top-1 right-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-bold">
+                                        LOCKED
+                                      </div>
+                                      <div className="text-xs font-semibold text-amber-900">
+                                        {asset.name}
+                                      </div>
+                                      <div className="text-xs text-amber-700 mt-0.5">
+                                        📍 {asset.location}
+                                      </div>
+                                      <div className="mt-1">
+                                        <div className="text-xs text-amber-600 opacity-70">Market Value</div>
+                                        <div className="text-xs font-bold text-amber-900">
+                                          {formatCurrency(asset.value)}
+                                        </div>
+                                      </div>
+                                      <div className="text-xs text-amber-600 mt-1 italic">
+                                        Pending exchange
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Escrowed Private Equity Assets */}
+                            {inventory.escrowedPrivateEquityAssets.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-amber-200">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 mb-2">
+                                  <span>🔒</span>
+                                  <TrendingUp className="w-3.5 h-3.5" />
+                                  <span>Private Equity In Escrow ({inventory.escrowedPrivateEquityAssets.length})</span>
+                                </div>
+                                <div className="space-y-1.5">
+                                  {inventory.escrowedPrivateEquityAssets.map((asset) => (
+                                    <div 
+                                      key={asset.id} 
+                                      className="bg-amber-50/70 backdrop-blur-sm rounded-lg p-2 border-2 border-amber-300 relative"
+                                    >
+                                      <div className="absolute top-1 right-1 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-bold">
+                                        LOCKED
+                                      </div>
+                                      <div className="text-xs font-semibold text-amber-900">
+                                        {asset.name}
+                                      </div>
+                                      <div className="text-xs text-amber-700 mt-0.5">
+                                        🏢 {asset.industry}
+                                      </div>
+                                      <div className="mt-1">
+                                        <div className="text-xs text-amber-600 opacity-70">Valuation</div>
+                                        <div className="text-xs font-bold text-amber-900">
+                                          {formatCurrency(asset.valuation)}
+                                        </div>
+                                      </div>
+                                      <div className="text-xs text-amber-600 mt-1 italic">
+                                        Pending exchange
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            </div>
+                            {/* Close Scrollable Container */}
                           </motion.div>
                         )}
                       </AnimatePresence>

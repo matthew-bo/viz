@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Transaction } from './types';
 import { apiClient } from './api/client';
@@ -11,7 +11,7 @@ import { ResizableLayout } from './components/ResizableLayout';
 import { BusinessPanel } from './components/BusinessPanel';
 import { SynchronizerFooter } from './components/SynchronizerFooter';
 import { MainContent } from './components/MainContent';
-import { CreateModal } from './components/CreateModal';
+import { CreateExchangeModal } from './components/CreateExchangeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -28,15 +28,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [pendingSubmission, setPendingSubmission] = useState<{ sender: string; receiver: string; amount: number } | null>(null);
-  
-  // Use ref so SSE handler can access latest pendingSubmission value
-  const pendingSubmissionRef = useRef<{ sender: string; receiver: string; amount: number } | null>(null);
-  
-  // Keep ref in sync with state
-  useEffect(() => {
-    pendingSubmissionRef.current = pendingSubmission;
-  }, [pendingSubmission]);
   
   // Zustand store
   const {
@@ -45,29 +36,50 @@ function App() {
     setTransactions,
     setParties,
     setConnectionStatus,
-    setSelectedTransaction,
     addOrUpdateTransaction
   } = useAppStore();
   
   // Toast notifications
   const { toasts, toast, removeToast } = useToast();
 
-  // Load initial data (parties and transactions)
+  // Load initial data (parties, transactions, and exchanges)
   useEffect(() => {
     async function loadInitialData() {
       try {
         console.log('Loading initial data...');
         
-        const [partiesList, txList] = await Promise.all([
-          apiClient.getParties(),
-          apiClient.getTransactions({ limit: 100 }) // Increased limit for demo data
-        ]);
-        
-        console.log('Loaded parties:', partiesList);
-        console.log('Loaded transactions:', txList);
-        
+        // Load parties (always needed)
+        const partiesList = await apiClient.getParties();
         setParties(partiesList);
-        setTransactions(txList);
+        console.log('Loaded parties:', partiesList);
+        
+        // Load transactions and exchanges in parallel
+        const allTransactions: Transaction[] = [];
+        
+        // Try to load Canton transactions (may not exist)
+        try {
+          const txList = await apiClient.getTransactions({ limit: 100 });
+          allTransactions.push(...txList);
+          console.log('Loaded Canton transactions:', txList.length);
+        } catch (txErr) {
+          console.warn('No Canton contracts deployed - this is expected for exchange-only mode');
+        }
+        
+        // Load exchanges and convert to transaction format
+        try {
+          const { exchangesToTransactions } = await import('./utils/exchangeAdapter');
+          const exchanges = await apiClient.getExchanges();
+          const exchangeTxs = exchangesToTransactions(exchanges);
+          allTransactions.push(...exchangeTxs);
+          console.log('Loaded exchanges:', exchanges.length);
+        } catch (exErr) {
+          console.warn('Failed to load exchanges:', exErr);
+        }
+        
+        // Set all transactions (Canton + Exchanges)
+        setTransactions(allTransactions);
+        console.log('Total items loaded:', allTransactions.length);
+        
         setError(null);
       } catch (err: any) {
         console.error('Failed to load initial data:', err);
@@ -127,18 +139,35 @@ function App() {
           
           // Use Zustand's intelligent add/update logic
           addOrUpdateTransaction(tx);
-          
-          // Auto-select if this matches a pending submission (use ref to get latest value)
-          const pending = pendingSubmissionRef.current;
-          if (pending && 
-              tx.senderDisplayName === pending.sender &&
-              tx.receiverDisplayName === pending.receiver &&
-              parseFloat(tx.payload.amount) === pending.amount) {
-            console.log('Auto-selecting newly created transaction:', tx.contractId);
-            setSelectedTransaction(tx);
-            setPendingSubmission(null); // Clear pending
-            toast.success('Transaction created! Viewing details...');
-          }
+        }
+        
+        // Handle exchange events (convert to transaction format for display)
+        if (message.type === 'exchange') {
+          import('./utils/exchangeAdapter').then(({ exchangeToTransaction }) => {
+            const exchange = message.data;
+            const tx = exchangeToTransaction(exchange);
+            console.log('Exchange update:', tx.contractId, tx.status);
+            
+            addActivityLog({
+              level: 'info',
+              category: 'transaction',
+              message: `Exchange ${tx.status}: ${tx.senderDisplayName} ↔ ${tx.receiverDisplayName}`,
+              details: {
+                exchangeId: exchange.id,
+                status: exchange.status,
+              },
+            });
+            
+            // Add/update as a transaction
+            addOrUpdateTransaction(tx);
+            
+            // Show toast
+            if (exchange.status === 'pending') {
+              toast.success('New exchange proposal created!');
+            } else if (exchange.status === 'accepted') {
+              toast.success('Exchange accepted and completed!');
+            }
+          });
         }
       } catch (err) {
         console.error('Failed to parse SSE message:', err);
@@ -160,42 +189,35 @@ function App() {
   }, []); // Empty deps - only run once on mount
 
   // Handle form submission (with RWA fields)
-  const handleSubmit = async (data: {
-    sender: string;
-    receiver: string;
-    amount: number;
-    description: string;
-    rwaType?: string;
-    rwaDetails?: string;
+  const handleExchangeSubmit = async (data: {
+    fromParty: string;
+    toParty: string;
+    offering: any;
+    requesting: any;
+    description?: string;
   }) => {
     try {
-      console.log('Submitting transaction:', data);
+      console.log('Submitting exchange:', data);
       addActivityLog({
         level: 'info',
         category: 'user',
-        message: `Submitting payment request: ${data.sender} → ${data.receiver}`,
+        message: `Creating exchange: ${data.fromParty} ↔ ${data.toParty}`,
         details: {
-          amount: data.amount,
+          offering: data.offering,
+          requesting: data.requesting,
           description: data.description,
-          rwaType: data.rwaType,
         },
       });
       
-      // Track this submission to auto-select when it arrives via SSE
-      setPendingSubmission({
-        sender: data.sender,
-        receiver: data.receiver,
-        amount: data.amount
-      });
+      const exchange = await apiClient.createExchange(data);
+      toast.success('Exchange proposal created successfully');
+      console.log('Exchange created:', exchange);
       
-      await apiClient.submitContract(data);
-      toast.success('Payment request submitted successfully');
-      // Transaction will be auto-selected when it arrives via SSE
+      // TODO: Auto-select the exchange in the UI when SSE updates
     } catch (err: any) {
-      console.error('Failed to submit:', err);
-      toast.error(err?.message || 'Failed to submit payment request');
-      setPendingSubmission(null); // Clear on error
-      throw err; // Re-throw for CreateModal to handle
+      console.error('Failed to create exchange:', err);
+      toast.error(err?.message || 'Failed to create exchange');
+      throw err; // Re-throw for CreateExchangeModal to handle
     }
   };
 
@@ -266,11 +288,11 @@ function App() {
         footer={<SynchronizerFooter />}
       />
 
-      {/* Create Transaction Modal */}
-      <CreateModal
+      {/* Create Exchange Modal */}
+      <CreateExchangeModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleSubmit}
+        onSubmit={handleExchangeSubmit}
       />
 
     </div>

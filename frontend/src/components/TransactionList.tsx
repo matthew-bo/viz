@@ -1,8 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
+import { RefreshCw } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { formatCurrency, formatRWAType } from '../utils/formatters';
+import { isExchangeTransaction } from '../utils/exchangeAdapter';
 
 /**
  * TransactionList - Table-based view of all transactions
@@ -29,10 +31,20 @@ export const TransactionList: React.FC = () => {
   if (transactions.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center text-gray-500">
-          <div className="text-4xl mb-2">📭</div>
-          <div className="text-lg font-medium">No transactions found</div>
-          <div className="text-sm">Try adjusting your filters</div>
+        <div className="text-center text-gray-500 max-w-md mx-auto p-8">
+          <div className="text-6xl mb-4">🏦</div>
+          <div className="text-xl font-bold mb-2">Asset Exchange Platform</div>
+          <div className="text-base mb-4">
+            No Canton transactions found - this is expected for the new exchange system.
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left text-sm">
+            <div className="font-semibold text-blue-900 mb-2">✨ New Features:</div>
+            <ul className="space-y-1 text-blue-800">
+              <li>• Click <strong>CREATE</strong> to propose asset exchanges</li>
+              <li>• View party inventories in the left sidebar</li>
+              <li>• Trade cash, real estate, and private equity</li>
+            </ul>
+          </div>
         </div>
       </div>
     );
@@ -76,20 +88,30 @@ export const TransactionList: React.FC = () => {
               >
                 {/* Status */}
                 <td className="px-4 py-3">
-                  <span className={`
-                    inline-flex px-2 py-1 text-xs font-medium rounded-full
-                    ${tx.status === 'committed'
-                      ? 'bg-green-100 text-green-800'
-                      : tx.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-red-100 text-red-800'
-                    }
-                  `}>
-                    {tx.status === 'committed' ? '✓' : '⏳'} {tx.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`
+                      inline-flex px-2 py-1 text-xs font-medium rounded-full
+                      ${tx.status === 'committed'
+                        ? 'bg-green-100 text-green-800'
+                        : tx.status === 'pending'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-800'
+                      }
+                    `}>
+                      {tx.status === 'committed' ? '✓' : '⏳'} {tx.status}
+                    </span>
+                    {isExchangeTransaction(tx) && (
+                      <span 
+                        className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded"
+                        title="Asset Exchange"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </span>
+                    )}
+                  </div>
                 </td>
 
-                {/* From → To */}
+                {/* From → To (or ↔ for exchanges) */}
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2 text-sm">
                     <span className="flex items-center gap-1">
@@ -99,7 +121,9 @@ export const TransactionList: React.FC = () => {
                       />
                       <span className="font-medium">{tx.senderDisplayName}</span>
                     </span>
-                    <span className="text-gray-400">→</span>
+                    <span className="text-gray-400">
+                      {isExchangeTransaction(tx) ? '↔' : '→'}
+                    </span>
                     <span className="flex items-center gap-1">
                       <div 
                         className="w-2 h-2 rounded-full"

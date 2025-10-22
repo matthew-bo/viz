@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Transaction, Party } from '../types';
+import { Transaction, Party, Asset } from '../types';
 
 type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
 type ViewMode = 'grid' | 'list' | 'flow';
@@ -32,6 +32,9 @@ export interface AppStore {
   selectedTransaction: Transaction | null;
   setSelectedTransaction: (tx: Transaction | null) => void;
   
+  selectedAsset: Asset | null;
+  setSelectedAsset: (asset: Asset | null) => void;
+  
   // Connection state
   connectionStatus: ConnectionStatus;
   setConnectionStatus: (status: ConnectionStatus) => void;
@@ -55,6 +58,7 @@ export const useAppStore = create<AppStore>()(
       selectedRWA: null,
       activeView: 'grid',
       selectedTransaction: null,
+      selectedAsset: null,
       connectionStatus: 'connecting',
       
       // Setters
@@ -110,6 +114,7 @@ export const useAppStore = create<AppStore>()(
       setSelectedRWA: (rwa) => set({ selectedRWA: rwa }),
       setActiveView: (view) => set({ activeView: view }),
       setSelectedTransaction: (tx) => set({ selectedTransaction: tx }),
+      setSelectedAsset: (asset) => set({ selectedAsset: asset }),
       setConnectionStatus: (status) => set({ connectionStatus: status }),
       
       // Helper methods

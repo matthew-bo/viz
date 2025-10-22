@@ -113,6 +113,24 @@ export const TransactionTimeline: React.FC<TransactionTimelineProps> = ({
                 </div>
                 <div className="text-sm opacity-90">{transaction.payload.currency}</div>
               </div>
+              
+              {/* Escrow Status - Only for Pending */}
+              {isPending && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="mt-2 bg-amber-50 border-2 border-amber-300 rounded-lg px-4 py-2 shadow-md"
+                >
+                  <div className="flex items-center gap-2 text-amber-800">
+                    <span className="text-lg">🔒</span>
+                    <div className="text-sm">
+                      <div className="font-bold">Funds in Escrow</div>
+                      <div className="text-xs text-amber-600">Locked until accepted</div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* Receiver */}

@@ -8,7 +8,14 @@ import contractsRouter from './routes/contracts';
 import partiesRouter from './routes/parties';
 import eventsRouter from './routes/events';
 import adminRouter from './routes/admin';
+import exchangesRouter from './routes/exchanges';
+import inventoryRouter from './routes/inventory';
+import assetsRouter from './routes/assets';
 import { config } from './config';
+import { ledgerClient } from './canton';
+import { seedAssets } from './scripts/seedAssets';
+import inventoryService from './services/inventoryService';
+import exchangeService from './services/exchangeService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,6 +44,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Seed assets on startup
+console.log('Initializing asset registry...');
+const parties = ledgerClient.getAllParties().map(p => ({
+  partyId: p.partyId,
+  displayName: p.displayName
+}));
+seedAssets(parties);
+
 // Routes
 console.log('Mounting API routes...');
 app.use('/api/contracts', contractsRouter);
@@ -51,15 +66,74 @@ console.log('✓ /api/events');
 app.use('/api/admin', adminRouter);
 console.log('✓ /api/admin');
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy',
+app.use('/api/exchanges', exchangesRouter);
+console.log('✓ /api/exchanges');
+
+app.use('/api/inventory', inventoryRouter);
+console.log('✓ /api/inventory');
+
+app.use('/api/assets', assetsRouter);
+console.log('✓ /api/assets');
+
+// Enhanced health check endpoint - checks all critical services
+app.get('/health', async (req, res) => {
+  const health = {
+    status: 'healthy' as 'healthy' | 'degraded' | 'down',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  });
+    version: '1.0.0',
+    services: {
+      api: { status: 'healthy' as 'healthy' | 'down', message: 'API server running' },
+      canton: { status: 'unknown' as 'healthy' | 'degraded' | 'down' | 'unknown', message: 'Not checked' },
+      inventory: { status: 'unknown' as 'healthy' | 'down' | 'unknown', message: 'Not checked' },
+      exchanges: { status: 'unknown' as 'healthy' | 'down' | 'unknown', message: 'Not checked' },
+    }
+  };
+
+  // Check Canton ledger connectivity
+  try {
+    const parties = await ledgerClient.getAllParties();
+    if (parties && parties.length > 0) {
+      health.services.canton = { status: 'healthy', message: `${parties.length} participants active` };
+    } else {
+      health.services.canton = { status: 'degraded', message: 'No participants found' };
+      health.status = 'degraded';
+    }
+  } catch (error: any) {
+    health.services.canton = { status: 'down', message: error.message || 'Canton unreachable' };
+    health.status = 'degraded'; // Don't mark as 'down' if only Canton is unavailable
+  }
+
+  // Check inventory service
+  try {
+    const inventories = await inventoryService.getAllInventories();
+    health.services.inventory = { 
+      status: 'healthy', 
+      message: `${inventories.length} inventories tracked` 
+    };
+  } catch (error: any) {
+    health.services.inventory = { status: 'down', message: 'Inventory service error' };
+    health.status = 'degraded';
+  }
+
+  // Check exchange service
+  try {
+    const exchanges = await exchangeService.getAllExchanges();
+    health.services.exchanges = { 
+      status: 'healthy', 
+      message: `${exchanges.length} active exchanges` 
+    };
+  } catch (error: any) {
+    health.services.exchanges = { status: 'down', message: 'Exchange service error' };
+    health.status = 'degraded';
+  }
+
+  // Return appropriate HTTP status code
+  const httpStatus = health.status === 'healthy' ? 200 : 
+                     health.status === 'degraded' ? 200 : 503;
+  
+  res.status(httpStatus).json(health);
 });
-console.log('✓ /health');
+console.log('✓ /health (enhanced with service checks)');
 
 // 404 handler
 app.use((req, res) => {

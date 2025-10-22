@@ -115,5 +115,31 @@ export function broadcastTransaction(transaction: CantonTransaction): void {
   }
 }
 
+/**
+ * Generic broadcast function for any event type
+ * Used by exchange, inventory, and other new features
+ */
+export function broadcast(event: { type: string; data: any }): void {
+  const message = `data: ${JSON.stringify(event)}\n\n`;
+  
+  console.log(`📡 Broadcasting ${event.type} to ${clients.length} clients`);
+  
+  // Filter out dead clients first
+  const activeClients = clients.filter(client => client.writable);
+  
+  // Send to all active clients
+  let successCount = 0;
+  activeClients.forEach((client) => {
+    try {
+      client.write(message);
+      successCount++;
+    } catch (error) {
+      console.error(`Failed to send to client:`, error);
+    }
+  });
+  
+  console.log(`✓ Broadcast complete: ${successCount} sent`);
+}
+
 export default router;
 
