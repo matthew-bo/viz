@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Single-Node Canton Setup
 # 1 container runs both participant + domain
 # Simpler topology, faster initialization, easier debugging
@@ -21,12 +19,13 @@ services:
       # Initialization script
       - ./canton-init.sc:/canton/canton-init.sc:ro
       # DAR file
-      - /tmp/payment.dar:/tmp/payment.dar:ro
+      - ../daml/payment-demo-0.0.1.dar:/tmp/payment.dar:ro
       # Persistent storage for Canton (H2 database)
       - canton-data:/canton-data
     command: >
       daemon 
       --config /canton/canton-simple.conf
+      --bootstrap /canton/canton-init.sc
       --log-level-root=INFO
     restart: unless-stopped
     networks:
