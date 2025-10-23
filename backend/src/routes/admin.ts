@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { generateDemoTransactions } from '../utils/demo-data-generator';
 import { ledgerClient } from '../canton';
+import { seedExchanges } from '../scripts/seedExchanges';
+import inventoryService from '../services/inventoryService';
 
 const router = Router();
 
@@ -28,6 +30,50 @@ router.post('/seed-demo', async (req, res) => {
     console.error('Failed to generate demo data:', error);
     res.status(500).json({ 
       error: 'Failed to generate demo data',
+      message: error?.message || String(error)
+    });
+  }
+});
+
+/**
+ * POST /api/admin/seed-exchanges
+ * Generate backdated exchange transactions for demo purposes
+ * Body (optional):
+ *   - count: Number of exchanges to generate (default: 30, max: 100)
+ */
+router.post('/seed-exchanges', async (req, res) => {
+  try {
+    const count = Math.min(parseInt(req.body.count) || 30, 100);
+    
+    console.log(`POST /api/admin/seed-exchanges - generating ${count} backdated exchanges`);
+    
+    // Get parties from inventory
+    const inventories = inventoryService.getAllInventories();
+    const parties = inventories.map(inv => ({
+      partyId: inv.partyId,
+      displayName: inv.displayName
+    }));
+
+    if (parties.length === 0) {
+      return res.status(400).json({
+        error: 'No parties found',
+        message: 'Please ensure assets are seeded first (inventories must exist)'
+      });
+    }
+    
+    // Generate backdated exchanges
+    const exchangeIds = await seedExchanges(parties, count);
+    
+    res.json({ 
+      success: true, 
+      message: `Successfully generated ${exchangeIds.length} backdated exchanges`,
+      count: exchangeIds.length,
+      exchangeIds
+    });
+  } catch (error: any) {
+    console.error('Failed to seed exchanges:', error);
+    res.status(500).json({ 
+      error: 'Failed to seed exchanges',
       message: error?.message || String(error)
     });
   }
