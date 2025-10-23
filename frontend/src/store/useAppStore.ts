@@ -48,6 +48,9 @@ export interface AppStore {
   };
 }
 
+// Configuration constants
+const MAX_TRANSACTIONS = 200; // Limit to prevent unbounded array growth
+
 export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
@@ -62,10 +65,10 @@ export const useAppStore = create<AppStore>()(
       connectionStatus: 'connecting',
       
       // Setters
-      setTransactions: (txs) => set({ transactions: txs }),
+      setTransactions: (txs) => set({ transactions: txs.slice(0, MAX_TRANSACTIONS) }),
       
       addTransaction: (tx) => set((state) => ({
-        transactions: [tx, ...state.transactions]
+        transactions: [tx, ...state.transactions].slice(0, MAX_TRANSACTIONS)
       })),
       
       updateTransaction: (contractId, tx) => set((state) => ({
@@ -101,9 +104,10 @@ export const useAppStore = create<AppStore>()(
               return !isMatchingPending;
             });
             
-            set({ transactions: [tx, ...filteredTxs] });
+            // Respect max limit when adding
+            set({ transactions: [tx, ...filteredTxs].slice(0, MAX_TRANSACTIONS) });
           } else {
-            // Add new transaction
+            // Add new transaction (addTransaction already handles limit)
             get().addTransaction(tx);
           }
         }
@@ -178,7 +182,9 @@ export const useAppStore = create<AppStore>()(
       partialize: (state) => ({
         selectedBusiness: state.selectedBusiness,
         selectedRWA: state.selectedRWA,
-        activeView: state.activeView
+        activeView: state.activeView,
+        // Persist only recent transactions to avoid localStorage bloat
+        transactions: state.transactions.slice(0, 50)
       })
     }
   )

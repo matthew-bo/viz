@@ -24,24 +24,19 @@ class ExchangeService {
     requesting: ExchangeOffer,
     description?: string
   ): ExchangeProposal | null {
-    // Validate exchange
-    const validation = this.validateExchange(fromParty, toParty, offering, requesting);
-    if (!validation.valid) {
-      console.error('Exchange validation failed:', validation.errors);
-      return null;
-    }
-
     const exchangeId = `ex_${Date.now()}_${++this.exchangeCounter}`;
     
-    // Lock offered assets/cash in escrow
-    if (!this.lockOfferingInEscrow(fromParty, offering)) {
-      console.error('Failed to lock offering in escrow');
+    // Atomically validate and lock offered assets/cash in escrow
+    const offeringLock = this.atomicLockOffering(fromParty, offering);
+    if (!offeringLock.success) {
+      console.error('Failed to lock offering:', offeringLock.error);
       return null;
     }
 
-    // Lock requested assets/cash in escrow
-    if (!this.lockOfferingInEscrow(toParty, requesting)) {
-      console.error('Failed to lock requesting in escrow');
+    // Atomically validate and lock requested assets/cash in escrow
+    const requestingLock = this.atomicLockOffering(toParty, requesting);
+    if (!requestingLock.success) {
+      console.error('Failed to lock requesting:', requestingLock.error);
       // Rollback: release the offering
       this.releaseOfferingFromEscrow(fromParty, offering);
       return null;
@@ -67,50 +62,26 @@ class ExchangeService {
   }
 
   /**
-   * Validate exchange proposal
+   * Atomically validate and lock offering in escrow
+   * Prevents race conditions by combining validation and locking
    */
-  validateExchange(
-    fromParty: string,
-    toParty: string,
-    offering: ExchangeOffer,
-    requesting: ExchangeOffer
-  ): ExchangeValidation {
-    const errors: string[] = [];
-
-    // Validate offering
+  private atomicLockOffering(partyId: string, offering: ExchangeOffer): { success: boolean; error?: string } {
     if (offering.type === 'cash') {
+      // Validate amount
       if (!offering.cashAmount || offering.cashAmount <= 0) {
-        errors.push('Invalid cash amount offered');
-      } else if (!inventoryService.hasSufficientCash(fromParty, offering.cashAmount)) {
-        errors.push('Insufficient cash balance to offer');
+        return { success: false, error: 'Invalid cash amount' };
       }
+      // Atomically validate and lock
+      return inventoryService.validateAndLockCash(partyId, offering.cashAmount);
     } else {
+      // Validate asset ID
       if (!offering.assetId) {
-        errors.push('Asset ID required for offering');
-      } else if (!inventoryService.ownsAsset(fromParty, offering.assetId)) {
-        errors.push('Cannot offer asset you do not own');
+        return { success: false, error: 'Asset ID required' };
       }
+      const assetType = offering.type === 'real_estate' ? 'real_estate' : 'private_equity';
+      // Atomically validate and lock
+      return inventoryService.validateAndLockAsset(partyId, offering.assetId, assetType);
     }
-
-    // Validate requesting
-    if (requesting.type === 'cash') {
-      if (!requesting.cashAmount || requesting.cashAmount <= 0) {
-        errors.push('Invalid cash amount requested');
-      } else if (!inventoryService.hasSufficientCash(toParty, requesting.cashAmount)) {
-        errors.push('Receiver does not have sufficient cash');
-      }
-    } else {
-      if (!requesting.assetId) {
-        errors.push('Asset ID required for requesting');
-      } else if (!inventoryService.ownsAsset(toParty, requesting.assetId)) {
-        errors.push('Cannot request asset that receiver does not own');
-      }
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors,
-    };
   }
 
   /**
@@ -157,14 +128,23 @@ class ExchangeService {
 
   /**
    * Execute the actual asset/cash transfers from escrow
+   * Implements rollback mechanism to ensure atomicity
    */
   private executeExchange(exchange: ExchangeProposal): boolean {
+    // Track rollback actions in reverse order
+    const rollbackActions: Array<() => void> = [];
+    
     try {
-      // Transfer offering from escrow (fromParty → toParty)
+      // Step 1: Transfer offering from escrow (fromParty → toParty)
       if (exchange.offering.type === 'cash') {
         if (!inventoryService.transferCashFromEscrow(exchange.fromParty, exchange.toParty, exchange.offering.cashAmount!)) {
-          throw new Error('Failed to transfer cash from escrow');
+          throw new Error('Failed to transfer offering cash from escrow');
         }
+        // Rollback: reverse the cash transfer
+        rollbackActions.push(() => {
+          inventoryService.transferCashFromEscrow(exchange.toParty, exchange.fromParty, exchange.offering.cashAmount!);
+          console.log('🔄 Rolled back offering cash transfer');
+        });
       } else {
         // Transfer asset ownership
         const assetId = exchange.offering.assetId!;
@@ -186,19 +166,38 @@ class ExchangeService {
         };
 
         if (!assetService.transferOwnership(assetId, exchange.toParty, historyEntry)) {
-          throw new Error('Failed to transfer asset ownership');
+          throw new Error('Failed to transfer offering asset ownership');
         }
 
         if (!inventoryService.transferAssetFromEscrow(exchange.fromParty, exchange.toParty, assetId, assetType)) {
-          throw new Error('Failed to transfer asset from escrow');
+          throw new Error('Failed to transfer offering asset from escrow');
         }
+        
+        // Rollback: reverse the asset transfer
+        rollbackActions.push(() => {
+          assetService.transferOwnership(assetId, exchange.fromParty, {
+            timestamp: new Date(),
+            fromParty: exchange.toPartyName,
+            toParty: exchange.fromPartyName,
+            exchangeId: exchange.id + '_rollback',
+            exchangedFor: { type: 'rollback', description: 'Exchange rollback', value: 0 }
+          });
+          // Move asset back to fromParty's available inventory
+          inventoryService.addAsset(exchange.fromParty, assetId, assetType);
+          console.log('🔄 Rolled back offering asset transfer');
+        });
       }
 
-      // Transfer requesting from escrow (toParty → fromParty)
+      // Step 2: Transfer requesting from escrow (toParty → fromParty)
       if (exchange.requesting.type === 'cash') {
         if (!inventoryService.transferCashFromEscrow(exchange.toParty, exchange.fromParty, exchange.requesting.cashAmount!)) {
-          throw new Error('Failed to transfer cash from escrow');
+          throw new Error('Failed to transfer requesting cash from escrow');
         }
+        // Rollback: reverse the cash transfer
+        rollbackActions.push(() => {
+          inventoryService.transferCashFromEscrow(exchange.fromParty, exchange.toParty, exchange.requesting.cashAmount!);
+          console.log('🔄 Rolled back requesting cash transfer');
+        });
       } else {
         // Transfer asset ownership
         const assetId = exchange.requesting.assetId!;
@@ -220,17 +219,46 @@ class ExchangeService {
         };
 
         if (!assetService.transferOwnership(assetId, exchange.fromParty, historyEntry)) {
-          throw new Error('Failed to transfer asset ownership');
+          throw new Error('Failed to transfer requesting asset ownership');
         }
 
         if (!inventoryService.transferAssetFromEscrow(exchange.toParty, exchange.fromParty, assetId, assetType)) {
-          throw new Error('Failed to transfer asset from escrow');
+          throw new Error('Failed to transfer requesting asset from escrow');
         }
+        
+        // Rollback: reverse the asset transfer
+        rollbackActions.push(() => {
+          assetService.transferOwnership(assetId, exchange.toParty, {
+            timestamp: new Date(),
+            fromParty: exchange.fromPartyName,
+            toParty: exchange.toPartyName,
+            exchangeId: exchange.id + '_rollback',
+            exchangedFor: { type: 'rollback', description: 'Exchange rollback', value: 0 }
+          });
+          // Move asset back to toParty's available inventory
+          inventoryService.addAsset(exchange.toParty, assetId, assetType);
+          console.log('🔄 Rolled back requesting asset transfer');
+        });
       }
 
+      // All transfers successful!
+      console.log(`✅ Exchange ${exchange.id} executed successfully`);
       return true;
+      
     } catch (error) {
-      console.error('Exchange execution failed:', error);
+      console.error('❌ Exchange execution failed:', error);
+      console.log(`🔄 Rolling back ${rollbackActions.length} operation(s)...`);
+      
+      // Execute rollback actions in reverse order (LIFO)
+      rollbackActions.reverse().forEach((rollbackFn, index) => {
+        try {
+          rollbackFn();
+        } catch (rollbackError) {
+          console.error(`Failed to execute rollback action ${index + 1}:`, rollbackError);
+        }
+      });
+      
+      console.log('🔄 Rollback complete - exchange state restored');
       return false;
     }
   }
@@ -277,17 +305,6 @@ class ExchangeService {
     return true;
   }
 
-  /**
-   * Lock offering in escrow (cash or asset)
-   */
-  private lockOfferingInEscrow(partyId: string, offering: ExchangeOffer): boolean {
-    if (offering.type === 'cash') {
-      return inventoryService.lockCashInEscrow(partyId, offering.cashAmount!);
-    } else {
-      const assetType = offering.type === 'real_estate' ? 'real_estate' : 'private_equity';
-      return inventoryService.lockAssetInEscrow(partyId, offering.assetId!, assetType);
-    }
-  }
 
   /**
    * Release offering from escrow (cash or asset)

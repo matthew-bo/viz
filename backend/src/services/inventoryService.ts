@@ -324,6 +324,65 @@ class InventoryService {
   }
 
   /**
+   * Atomically validate and lock cash in escrow
+   * This prevents race conditions where validation passes but locking fails
+   * due to concurrent operations
+   */
+  validateAndLockCash(partyId: string, amount: number): { success: boolean; error?: string } {
+    const inventory = this.getInventory(partyId);
+    if (!inventory) {
+      return { success: false, error: `Inventory not found for party ${partyId}` };
+    }
+
+    // Atomic check and lock
+    if (inventory.cash < amount) {
+      return { 
+        success: false, 
+        error: `Insufficient cash for ${inventory.displayName}: has $${inventory.cash.toLocaleString()}, needs $${amount.toLocaleString()}` 
+      };
+    }
+
+    // Lock immediately after validation
+    inventory.cash -= amount;
+    inventory.escrowedCash += amount;
+    inventory.lastUpdated = new Date();
+    console.log(`🔒 Atomically validated and locked $${amount.toLocaleString()} for ${inventory.displayName}`);
+    
+    return { success: true };
+  }
+
+  /**
+   * Atomically validate and lock asset in escrow
+   * This prevents race conditions where validation passes but locking fails
+   */
+  validateAndLockAsset(partyId: string, assetId: string, assetType: 'real_estate' | 'private_equity'): { success: boolean; error?: string } {
+    const inventory = this.getInventory(partyId);
+    if (!inventory) {
+      return { success: false, error: `Inventory not found for party ${partyId}` };
+    }
+
+    // Atomic check and lock
+    if (assetType === 'real_estate') {
+      if (!inventory.realEstate.includes(assetId)) {
+        return { success: false, error: `Asset ${assetId} not owned by party` };
+      }
+      inventory.realEstate = inventory.realEstate.filter(id => id !== assetId);
+      inventory.escrowedRealEstate.push(assetId);
+    } else {
+      if (!inventory.privateEquity.includes(assetId)) {
+        return { success: false, error: `Asset ${assetId} not owned by party` };
+      }
+      inventory.privateEquity = inventory.privateEquity.filter(id => id !== assetId);
+      inventory.escrowedPrivateEquity.push(assetId);
+    }
+
+    inventory.lastUpdated = new Date();
+    console.log(`🔒 Atomically validated and locked ${assetType} ${assetId} for ${inventory.displayName}`);
+    
+    return { success: true };
+  }
+
+  /**
    * Get all inventories (for admin/debugging)
    */
   getAllInventories(): PartyInventory[] {

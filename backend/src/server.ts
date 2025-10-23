@@ -2,6 +2,43 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Validate required environment variables before starting
+const requiredEnvVars = [
+  'TECHBANK_PARTY_ID',
+  'GLOBALCORP_PARTY_ID',
+  'RETAILFINANCE_PARTY_ID',
+  'PARTICIPANT1_LEDGER_API',
+  'PARTICIPANT2_LEDGER_API',
+  'PARTICIPANT3_LEDGER_API'
+];
+
+const missingEnvVars = requiredEnvVars.filter(key => !process.env[key]);
+if (missingEnvVars.length > 0) {
+  console.error('');
+  console.error('═══════════════════════════════════════════════════════════');
+  console.error('  ❌ CONFIGURATION ERROR: Missing Environment Variables');
+  console.error('═══════════════════════════════════════════════════════════');
+  console.error('');
+  console.error('The following required environment variables are not set:');
+  console.error('');
+  missingEnvVars.forEach(key => {
+    console.error(`  - ${key}`);
+  });
+  console.error('');
+  console.error('Please ensure your .env file is properly configured:');
+  console.error('  1. Check if backend/.env exists');
+  console.error('  2. Copy from backend/env.template if needed');
+  console.error('  3. Fill in the real Canton party IDs from:');
+  console.error('     infrastructure/canton/party-ids.json');
+  console.error('');
+  console.error('Run this command to initialize Canton and get party IDs:');
+  console.error('  .\\infrastructure\\init-canton-final.ps1');
+  console.error('');
+  console.error('═══════════════════════════════════════════════════════════');
+  console.error('');
+  process.exit(1);
+}
+
 import express from 'express';
 import cors from 'cors';
 import contractsRouter from './routes/contracts';
