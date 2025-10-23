@@ -62,6 +62,8 @@ function generateDescription(assetType: string, assetId: string): string {
  */
 export async function seedExchanges(parties: Party[], count: number = 30) {
   console.log(`\n🌱 Seeding ${count} backdated exchanges...\n`);
+  console.log(`Parties received: ${parties.length}`);
+  parties.forEach(p => console.log(`  - ${p.displayName} (${p.partyId.substring(0, 30)}...)`));
 
   type ExchangeStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
   const statuses: ExchangeStatus[] = ['pending', 'accepted', 'rejected'];
@@ -82,6 +84,11 @@ export async function seedExchanges(parties: Party[], count: number = 30) {
 
       // Get available assets for initiator
       const inventory = inventoryService.getInventory(initiatorParty.partyId);
+      console.log(`Attempt ${i + 1}: ${initiatorParty.displayName} - inventory found: ${!!inventory}`);
+      if (inventory) {
+        console.log(`  Real estate: ${inventory.realEstate.length}, Private equity: ${inventory.privateEquity.length}`);
+      }
+      
       if (!inventory || (inventory.realEstate.length === 0 && inventory.privateEquity.length === 0)) {
         console.log(`⚠️  ${initiatorParty.displayName} has no assets to exchange`);
         continue;
