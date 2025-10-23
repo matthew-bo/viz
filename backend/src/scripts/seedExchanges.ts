@@ -34,24 +34,24 @@ function randomElement<T>(array: T[]): T {
 /**
  * Generate exchange description
  */
-function generateDescription(assetType: string, assetId: string): string {
+function generateDescription(assetType: string, assetName?: string): string {
   const descriptions = {
     real_estate: [
-      `Property acquisition - ${assetId}`,
-      `Real estate portfolio diversification`,
+      `Property acquisition - ${assetName}`,
+      `Real estate portfolio expansion`,
       `Strategic property investment`,
-      `Commercial real estate transaction`
+      `Commercial real estate purchase`
     ],
     private_equity: [
       `Private equity stake acquisition`,
-      `Company investment opportunity`,
+      `Company investment - ${assetName}`,
       `Portfolio company addition`,
-      `Strategic equity position`
+      `Strategic equity investment`
     ]
   };
 
   const typeDescriptions = descriptions[assetType as keyof typeof descriptions] || [
-    'Asset exchange transaction'
+    'Asset purchase transaction'
   ];
 
   return randomElement(typeDescriptions);
@@ -82,47 +82,67 @@ export async function seedExchanges(parties: Party[], count: number = 30) {
       const counterparties = parties.filter(p => p.partyId !== initiatorParty.partyId);
       const counterparty = randomElement(counterparties);
 
-      // Get available assets for initiator
+      // Get inventory for initiator (who will offer cash)
       const inventory = inventoryService.getInventory(initiatorParty.partyId);
-      console.log(`Attempt ${i + 1}: ${initiatorParty.displayName} - inventory found: ${!!inventory}`);
-      if (inventory) {
-        console.log(`  Real estate: ${inventory.realEstate.length}, Private equity: ${inventory.privateEquity.length}`);
-      }
+      console.log(`Attempt ${i + 1}: ${initiatorParty.displayName} offering cash`);
       
-      if (!inventory || (inventory.realEstate.length === 0 && inventory.privateEquity.length === 0)) {
-        console.log(`⚠️  ${initiatorParty.displayName} has no assets to exchange`);
+      if (!inventory) {
+        console.log(`⚠️  ${initiatorParty.displayName} inventory not found`);
         continue;
       }
 
-      // Pick random asset type and asset
-      const hasRealEstate = inventory.realEstate.length > 0;
-      const hasPrivateEquity = inventory.privateEquity.length > 0;
+      // Check if initiator has enough cash to make an offer
+      if (inventory.cash < 50000) {
+        console.log(`⚠️  ${initiatorParty.displayName} has insufficient cash ($${inventory.cash.toLocaleString()})`);
+        continue;
+      }
+      
+      console.log(`  Available cash: $${(inventory.cash / 1000000).toFixed(1)}M`);
+
+      // Get assets from counterparty (the person who will receive the cash)
+      const counterpartyInventory = inventoryService.getInventory(counterparty.partyId);
+      if (!counterpartyInventory || 
+          (counterpartyInventory.realEstate.length === 0 && counterpartyInventory.privateEquity.length === 0)) {
+        console.log(`⚠️  ${counterparty.displayName} has no assets to sell`);
+        continue;
+      }
+
+      // Pick random asset type and asset from counterparty
+      const hasRealEstate = counterpartyInventory.realEstate.length > 0;
+      const hasPrivateEquity = counterpartyInventory.privateEquity.length > 0;
       
       let offering: ExchangeOffer;
       let requesting: ExchangeOffer;
-      let assetValue: number;
 
+      // Initiator offers cash (10-90% of their available balance)
+      const cashMultiplier = 0.1 + Math.random() * 0.8; // 10% to 90% of cash
+      const cashAmount = Math.round(inventory.cash * cashMultiplier);
+      
+      offering = {
+        type: 'cash',
+        cashAmount: cashAmount
+      };
+
+      // Request asset from counterparty
       if (hasRealEstate && (!hasPrivateEquity || Math.random() > 0.5)) {
-        // Offer real estate asset
-        const assetId = randomElement(inventory.realEstate);
+        // Request real estate asset
+        const assetId = randomElement(counterpartyInventory.realEstate);
         const asset = assetService.getRealEstate(assetId);
         if (!asset) continue;
         
-        assetValue = asset.value;
-        offering = {
+        requesting = {
           type: 'real_estate',
           assetId: asset.id,
           assetName: asset.name,
           assetValue: asset.value
         };
       } else if (hasPrivateEquity) {
-        // Offer private equity asset
-        const assetId = randomElement(inventory.privateEquity);
+        // Request private equity asset
+        const assetId = randomElement(counterpartyInventory.privateEquity);
         const asset = assetService.getPrivateEquity(assetId);
         if (!asset) continue;
         
-        assetValue = asset.valuation;
-        offering = {
+        requesting = {
           type: 'private_equity',
           assetId: asset.id,
           assetName: asset.name,
@@ -131,15 +151,6 @@ export async function seedExchanges(parties: Party[], count: number = 30) {
       } else {
         continue;
       }
-
-      // Request cash (80-120% of asset value)
-      const cashMultiplier = 0.8 + Math.random() * 0.4; // 0.8 to 1.2
-      const cashAmount = Math.round(assetValue * cashMultiplier);
-      
-      requesting = {
-        type: 'cash',
-        cashAmount: cashAmount
-      };
 
       // Determine status based on weights
       const rand = Math.random();
@@ -160,7 +171,7 @@ export async function seedExchanges(parties: Party[], count: number = 30) {
         counterparty.displayName,
         offering,
         requesting,
-        generateDescription(offering.type, offering.assetId || 'cash')
+        generateDescription(requesting.type, requesting.assetName)
       );
 
       if (!exchange) {
@@ -196,11 +207,12 @@ export async function seedExchanges(parties: Party[], count: number = 30) {
         cancelled: '🚫'
       };
 
+      const assetEmoji = requesting.type === 'real_estate' ? '🏢' : '📊';
+      const assetName = requesting.assetName || 'Unknown';
       console.log(
         `${statusEmoji[status]} ${status.toUpperCase().padEnd(10)} | ` +
         `${initiatorParty.displayName} → ${counterparty.displayName} | ` +
-        `${offering.type === 'real_estate' ? '🏢' : '📊'} ${offering.assetName?.substring(0, 25)}... | ` +
-        `$${(cashAmount / 1000000).toFixed(1)}M | ` +
+        `💵 $${(cashAmount / 1000000).toFixed(1)}M → ${assetEmoji} ${assetName.substring(0, 25)} | ` +
         `${daysAgo}d ago`
       );
 
