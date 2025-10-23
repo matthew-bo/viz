@@ -118,7 +118,7 @@ export async function seedExchanges(parties: Party[], count: number = 30) {
         offering = {
           type: 'private_equity',
           assetId: asset.id,
-          assetName: asset.companyName,
+          assetName: asset.name,
           assetValue: asset.valuation
         };
       } else {
