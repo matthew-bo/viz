@@ -173,19 +173,19 @@ class ExchangeService {
           throw new Error('Failed to transfer offering asset from escrow');
         }
         
-        // Rollback: reverse the asset transfer
-        rollbackActions.push(() => {
-          assetService.transferOwnership(assetId, exchange.fromParty, {
-            timestamp: new Date(),
-            fromParty: exchange.toPartyName,
-            toParty: exchange.fromPartyName,
-            exchangeId: exchange.id + '_rollback',
-            exchangedFor: { type: 'rollback', description: 'Exchange rollback', value: 0 }
-          });
-          // Move asset back to fromParty's available inventory
-          inventoryService.addAsset(exchange.fromParty, assetId, assetType);
-          console.log('🔄 Rolled back offering asset transfer');
-        });
+            // Rollback: reverse the asset transfer
+            rollbackActions.push(() => {
+              assetService.transferOwnership(assetId, exchange.fromParty, {
+                timestamp: new Date(),
+                fromParty: exchange.toPartyName,
+                toParty: exchange.fromPartyName,
+                exchangeId: exchange.id + '_rollback',
+                exchangedFor: { type: 'cash', description: 'Exchange rollback', value: 0 }
+              });
+              // Move asset back to fromParty's available inventory
+              inventoryService.addAsset(exchange.fromParty, assetId, assetType);
+              console.log('🔄 Rolled back offering asset transfer');
+            });
       }
 
       // Step 2: Transfer requesting from escrow (toParty → fromParty)
@@ -226,19 +226,19 @@ class ExchangeService {
           throw new Error('Failed to transfer requesting asset from escrow');
         }
         
-        // Rollback: reverse the asset transfer
-        rollbackActions.push(() => {
-          assetService.transferOwnership(assetId, exchange.toParty, {
-            timestamp: new Date(),
-            fromParty: exchange.fromPartyName,
-            toParty: exchange.toPartyName,
-            exchangeId: exchange.id + '_rollback',
-            exchangedFor: { type: 'rollback', description: 'Exchange rollback', value: 0 }
-          });
-          // Move asset back to toParty's available inventory
-          inventoryService.addAsset(exchange.toParty, assetId, assetType);
-          console.log('🔄 Rolled back requesting asset transfer');
-        });
+            // Rollback: reverse the asset transfer
+            rollbackActions.push(() => {
+              assetService.transferOwnership(assetId, exchange.toParty, {
+                timestamp: new Date(),
+                fromParty: exchange.fromPartyName,
+                toParty: exchange.toPartyName,
+                exchangeId: exchange.id + '_rollback',
+                exchangedFor: { type: 'cash', description: 'Exchange rollback', value: 0 }
+              });
+              // Move asset back to toParty's available inventory
+              inventoryService.addAsset(exchange.toParty, assetId, assetType);
+              console.log('🔄 Rolled back requesting asset transfer');
+            });
       }
 
       // All transfers successful!
