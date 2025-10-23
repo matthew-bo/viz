@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
@@ -22,16 +22,15 @@ import { useTransactionAction } from '../hooks/useTransactionAction';
  */
 export const SynchronizerFooter: React.FC = () => {
   const { 
-    parties, 
     transactions, 
     connectionStatus,
     selectedTransaction,
-    setSelectedTransaction 
+    setSelectedTransaction,
+    selectedBusiness
   } = useAppStore();
   
   const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [filter, setFilter] = useState<string>('All');
 
   // Auto-scroll to right on new transactions
   useEffect(() => {
@@ -40,10 +39,10 @@ export const SynchronizerFooter: React.FC = () => {
     }
   }, [transactions.length]);
 
-  // Filter transactions
+  // Filter transactions based on global selectedBusiness filter
   const filteredTransactions = transactions.filter(tx => {
-    if (filter === 'All') return true;
-    return tx.senderDisplayName === filter || tx.receiverDisplayName === filter;
+    if (!selectedBusiness) return true;
+    return tx.senderDisplayName === selectedBusiness || tx.receiverDisplayName === selectedBusiness;
   });
 
   const committedTxs = filteredTransactions.filter(tx => tx.status === 'committed');
@@ -88,50 +87,40 @@ export const SynchronizerFooter: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-white border-t-2 border-gray-300">
-      {/* Header with Filters */}
-      <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
+      {/* Header with Stats - Compact */}
+      <div className="px-2 md:px-4 py-1.5 md:py-2 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-blue-50">
         <div className="flex items-center justify-between">
-          {/* Filter Buttons (Top-Left) */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-600 mr-1">Filter:</span>
-            <button
-              onClick={() => setFilter('All')}
-              className={`px-3 py-1 text-xs font-medium rounded transition-all ${
-                filter === 'All'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
-              }`}
-            >
-              All
-            </button>
-            {parties.map(party => (
-              <button
-                key={party.displayName}
-                onClick={() => setFilter(party.displayName)}
-                className={`px-3 py-1 text-xs font-medium rounded transition-all flex items-center gap-1.5 ${
-                  filter === party.displayName
-                    ? 'bg-white text-gray-800 shadow-sm border-2 border-blue-500'
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
-                }`}
-              >
-                <div 
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: party.color }}
-                />
-                {party.displayName}
-              </button>
-            ))}
+          {/* Title Section */}
+          <div className="flex items-center gap-3">
+            <h3 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+              <span>🔄</span>
+              <span>Synchronizer</span>
+            </h3>
+            {selectedBusiness && (
+              <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded">
+                {selectedBusiness}
+              </span>
+            )}
+            <span className="text-xs text-gray-500">
+              {filteredTransactions.length} tx
+            </span>
           </div>
 
           {/* Stats */}
-          <div className="flex items-center gap-4 text-xs text-gray-600">
-            <span>✅ Committed: <strong>{committedTxs.length}</strong></span>
-            <span>⏳ Pending: <strong>{pendingTxs.length}</strong></span>
-            <div className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full ${
-                connectionStatus === 'connected' ? 'bg-green-500' : 'bg-gray-300'
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-gray-600 flex items-center gap-1">
+              <span>✅</span>
+              <span className="font-bold text-green-600">{committedTxs.length}</span>
+            </div>
+            <div className="text-xs text-gray-600 flex items-center gap-1">
+              <span>⏳</span>
+              <span className="font-bold text-yellow-600">{pendingTxs.length}</span>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-gray-300">
+              <div className={`w-1.5 h-1.5 rounded-full ${
+                connectionStatus === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
               }`} />
-              <span className="capitalize">{connectionStatus}</span>
+              <span className="text-xs font-medium text-gray-700 capitalize">{connectionStatus}</span>
             </div>
           </div>
         </div>
@@ -140,12 +129,12 @@ export const SynchronizerFooter: React.FC = () => {
       {/* Horizontal Scrollable Timeline */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden p-4 bg-gradient-to-r from-gray-50 to-blue-50"
+        className="flex-1 overflow-x-auto overflow-y-hidden p-2 md:p-4 bg-gradient-to-r from-gray-50 to-blue-50"
       >
-        <div className="h-full flex items-center gap-3 min-w-max">
+        <div className="h-full flex items-center gap-2 md:gap-3 min-w-max">
           {/* Start Marker */}
-          <div className="flex-shrink-0 flex flex-col items-center justify-center px-4">
-            <div className="text-2xl mb-1">🏁</div>
+          <div className="flex-shrink-0 flex flex-col items-center justify-center px-2 md:px-4">
+            <div className="text-xl md:text-2xl mb-1">🏁</div>
             <div className="text-xs font-semibold text-gray-500">Start</div>
           </div>
 
@@ -228,7 +217,7 @@ const ContractBlock: React.FC<ContractBlockProps> = ({
       transition={{ delay: index * 0.02 }}
       whileHover={{ scale: 1.05, y: -4 }}
       className={`
-        flex-shrink-0 w-52 bg-white rounded-lg shadow-sm border-2 overflow-hidden transition-all cursor-pointer
+        flex-shrink-0 w-44 md:w-48 bg-white rounded-lg shadow-sm border-2 overflow-hidden transition-all cursor-pointer
         ${isSelected 
           ? 'border-blue-500 shadow-lg ring-2 ring-blue-500 ring-opacity-50' 
           : isPending 
@@ -240,26 +229,26 @@ const ContractBlock: React.FC<ContractBlockProps> = ({
     >
       {/* Main Content */}
       <div className="p-3">
-        {/* Status Badge */}
-        <div className="flex items-center justify-between mb-2">
-          <div className={`px-2 py-0.5 rounded text-xs font-bold ${
+        {/* Status Badge - Compact */}
+        <div className="flex items-center justify-between mb-1.5">
+          <div className={`px-2 py-0.5 rounded-full text-xs font-bold shadow-sm ${
             isCommitted 
-              ? 'bg-green-100 text-green-700' 
-              : 'bg-yellow-100 text-yellow-700'
+              ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border border-green-300' 
+              : 'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-700 border border-yellow-300'
           }`}>
-            {isCommitted ? '✅ Committed' : '⏳ Pending'}
+            {isCommitted ? '✅' : '⏳'}
           </div>
           <div className="text-xs text-gray-400 font-mono">
-            #{transaction.contractId.slice(0, 6)}
+            #{transaction.contractId.slice(0, 5)}
           </div>
         </div>
 
         {/* Amount */}
-        <div className="mb-2">
+        <div className="mb-1.5">
           <div className="text-lg font-bold text-gray-900">
             {formatCurrency(parseFloat(transaction.payload.amount))}
           </div>
-          <div className="text-xs text-gray-500 uppercase">
+          <div className="text-xs text-gray-500 uppercase font-medium">
             {transaction.payload.currency}
           </div>
         </div>
@@ -268,13 +257,13 @@ const ContractBlock: React.FC<ContractBlockProps> = ({
         <div className="space-y-1 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="text-gray-500">From:</span>
-            <span className="font-semibold text-gray-800 truncate">
+            <span className="font-semibold text-gray-900 truncate">
               {transaction.senderDisplayName}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-gray-500">To:</span>
-            <span className="font-semibold text-gray-800 truncate">
+            <span className="font-semibold text-gray-900 truncate">
               {transaction.receiverDisplayName}
             </span>
           </div>
@@ -282,7 +271,7 @@ const ContractBlock: React.FC<ContractBlockProps> = ({
 
         {/* RWA Type if exists */}
         {transaction.payload.rwaType && (
-          <div className="mt-2 pt-2 border-t border-gray-200">
+          <div className="mt-1.5 pt-1.5 border-t border-gray-200">
             <div className="text-xs text-gray-600 truncate">
               🏛️ {transaction.payload.rwaType}
             </div>
@@ -295,14 +284,14 @@ const ContractBlock: React.FC<ContractBlockProps> = ({
         <button
           onClick={handleAcceptClick}
           disabled={isAccepting}
-          className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 
-                     hover:to-green-700 text-white font-bold py-2 px-3 text-sm
+          className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600
+                     hover:to-green-700 text-white font-bold py-1.5 px-3 text-xs
                      transition-all transform hover:scale-105 border-t border-green-600
-                     disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+                     disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-1.5"
         >
           {isAccepting ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
               Accepting...
             </>
           ) : (

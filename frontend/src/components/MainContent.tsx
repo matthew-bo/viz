@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { List, TrendingUp, BarChart3 } from 'lucide-react';
+import { List, BarChart3 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { TransactionList } from './TransactionList';
 import { TransactionTimeline } from './TransactionTimeline';
-import { RWAFlowDiagram } from './RWAFlowDiagram';
 import { AssetHistoryView } from './AssetHistoryView';
 import { MetricsDashboard } from './MetricsDashboard';
 import { apiClient } from '../api/client';
@@ -12,14 +11,14 @@ import { isExchangeTransaction } from '../utils/exchangeAdapter';
 import { useIsSmallMobile } from '../hooks/useMediaQuery';
 import { useTransactionAction } from '../hooks/useTransactionAction';
 
-type ViewMode = 'list' | 'metrics' | 'flow';
+type ViewMode = 'list' | 'metrics';
 
 /**
  * MainContent - Central workspace area
  * 
  * Shows:
  * - List view (all transactions in table)
- * - Flow view (RWA asset flow diagram)
+ * - Metrics view (analytics dashboard)
  * - Timeline visualization when a transaction is selected
  */
 export const MainContent: React.FC = () => {
@@ -84,9 +83,7 @@ export const MainContent: React.FC = () => {
                 ? 'Transaction Details' 
                 : viewMode === 'list' 
                   ? 'Transactions & Exchanges'
-                  : viewMode === 'metrics'
-                    ? 'Analytics Dashboard'
-                    : 'RWA Flow Visualization'}
+                  : 'Analytics Dashboard'}
           </h2>
           {selectedTransaction && (
             <span className="text-sm text-gray-500">
@@ -101,7 +98,7 @@ export const MainContent: React.FC = () => {
             onClick={() => handleTabChange('list')}
             className={`flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-3 font-medium text-sm 
                        transition-colors border-b-2 min-h-touch whitespace-nowrap ${
-              viewMode === 'list' && !selectedTransaction && !selectedAsset
+              viewMode === 'list'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
             }`}
@@ -114,7 +111,7 @@ export const MainContent: React.FC = () => {
             onClick={() => handleTabChange('metrics')}
             className={`flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-3 font-medium text-sm 
                        transition-colors border-b-2 min-h-touch whitespace-nowrap ${
-              viewMode === 'metrics' && !selectedTransaction && !selectedAsset
+              viewMode === 'metrics'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
             }`}
@@ -123,35 +120,6 @@ export const MainContent: React.FC = () => {
             {!isSmallMobile && <span>Metrics</span>}
           </button>
 
-          <button
-            onClick={() => handleTabChange('flow')}
-            className={`flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-3 font-medium text-sm 
-                       transition-colors border-b-2 min-h-touch whitespace-nowrap ${
-              viewMode === 'flow' && !selectedTransaction && !selectedAsset
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" />
-            {!isSmallMobile && <span>Flow</span>}
-          </button>
-
-          {/* Drill-down indicator */}
-          {(selectedTransaction || selectedAsset) && (
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs text-gray-500">Viewing Details</span>
-              <button
-                onClick={() => {
-                  setSelectedTransaction(null);
-                  setSelectedAsset(null);
-                }}
-                className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 
-                           hover:bg-blue-50 rounded-md transition-colors"
-              >
-                ← Back to {viewMode === 'list' ? 'List' : viewMode === 'metrics' ? 'Metrics' : 'Flow'}
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -198,7 +166,7 @@ export const MainContent: React.FC = () => {
             >
               <TransactionList />
             </motion.div>
-          ) : viewMode === 'metrics' ? (
+          ) : (
             // Metrics Dashboard view
             <motion.div
               key="metrics-view"
@@ -209,18 +177,6 @@ export const MainContent: React.FC = () => {
               className="h-full"
             >
               <MetricsDashboard selectedParty={selectedBusiness} />
-            </motion.div>
-          ) : (
-            // RWA Flow view
-            <motion.div
-              key="flow-view"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="h-full"
-            >
-              <RWAFlowDiagram />
             </motion.div>
           )}
         </AnimatePresence>

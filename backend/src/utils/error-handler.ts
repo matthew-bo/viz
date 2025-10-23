@@ -87,7 +87,8 @@ function parseCantonError(error: any): {
   }
   
   if (errorMsg.includes('unavailable') || errorMsg.includes('UNAVAILABLE') || 
-      errorMsg.includes('connection') || errorMsg.includes('ECONNREFUSED')) {
+      errorMsg.includes('connection') || errorMsg.includes('ECONNREFUSED') ||
+      errorMsg.includes('timeout') || errorMsg.includes('ETIMEDOUT')) {
     return {
       code: CantonErrorCode.UNAVAILABLE,
       message: 'Canton service temporarily unavailable',

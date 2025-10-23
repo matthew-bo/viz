@@ -15,6 +15,7 @@ import { MainContent } from './components/MainContent';
 import { CreateExchangeModal } from './components/CreateExchangeModal';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
+import { ConfettiEffect } from './components/ConfettiEffect';
 import { exchangeToTransaction } from './utils/exchangeAdapter';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -32,6 +33,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [triggerConfetti, setTriggerConfetti] = useState(false);
   
   // Keyboard shortcuts
   const { registerShortcut, shortcuts, showHelp, setShowHelp } = useKeyboardShortcuts();
@@ -257,6 +259,15 @@ function App() {
             },
           });
           
+          // Check if status changed to committed (trigger confetti!)
+          // Note: `transactions` is from closure but this is safe because we're checking
+          // the state BEFORE calling addOrUpdateTransaction, allowing us to detect the transition
+          const existingTx = transactions.find(t => t.contractId === tx.contractId);
+          if (existingTx?.status === 'pending' && tx.status === 'committed') {
+            setTriggerConfetti(true);
+            setTimeout(() => setTriggerConfetti(false), 100); // Reset trigger
+          }
+          
           // Use Zustand's intelligent add/update logic
           addOrUpdateTransaction(tx);
         }
@@ -281,11 +292,13 @@ function App() {
             // Add/update as a transaction
             addOrUpdateTransaction(tx);
             
-            // Show toast
+            // Show toast and confetti
             if (exchange.status === 'pending') {
               toast.success('New exchange proposal created!');
             } else if (exchange.status === 'accepted') {
               toast.success('Exchange accepted and completed!');
+              setTriggerConfetti(true);
+              setTimeout(() => setTriggerConfetti(false), 100);
             }
           });
         }
@@ -503,6 +516,9 @@ function App() {
         isOpen={showHelp}
         onClose={() => setShowHelp(false)}
       />
+
+      {/* Confetti Effect on Transaction Acceptance */}
+      <ConfettiEffect trigger={triggerConfetti} />
 
     </div>
   );

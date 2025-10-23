@@ -66,7 +66,11 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
             </div>
           </Panel>
 
-          <PanelResizeHandle className="w-1 bg-gray-200 hover:bg-blue-400 transition-colors cursor-col-resize" />
+          <PanelResizeHandle className="w-1.5 bg-gray-300 hover:bg-blue-500 transition-colors cursor-col-resize relative group">
+          <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="w-1 h-8 bg-blue-600 rounded-full shadow-md" />
+          </div>
+        </PanelResizeHandle>
 
           {/* Main Content Area - Transaction Views */}
           <Panel defaultSize={75} minSize={50}>
@@ -78,7 +82,7 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
       </div>
 
       {/* Footer - Synchronizer Visualization (Timeline) */}
-      <div className="h-56 border-t border-gray-300 bg-white shadow-lg">
+      <div className="h-60 border-t border-gray-300 bg-white shadow-lg">
         {footer}
       </div>
     </div>

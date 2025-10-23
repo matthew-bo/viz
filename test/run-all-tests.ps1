@@ -1,236 +1,166 @@
-# Master Test Runner for Phase 5: Integration Testing
-# Runs all automated tests in sequence
+# Master Test Runner
+# Executes all test categories in proper order
 
-Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Phase 5: Integration Testing - Master Test Runner" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Start Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Gray
+Write-Host "══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "  Canton Privacy Visualizer - Master Test Runner" -ForegroundColor Cyan
+Write-Host "══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
 
-$totalTests = 0
-$passedTests = 0
-$failedTests = 0
-$startTime = Get-Date
+$StartTime = Get-Date
+$TotalTests = 0
+$PassedTests = 0
+$FailedTests = 0
+$AllPassed = $true
 
-# Test Results Log
-$logFile = "test\test-results-$(Get-Date -Format 'yyyy-MM-dd-HHmmss').log"
-$testResults = @()
-
-function Run-Test {
+# Function to run test phase
+function Run-TestPhase {
     param(
-        [string]$TestName,
-        [string]$TestScript,
-        [string]$Category
+        [string]$Name,
+        [scriptblock]$Command,
+        [bool]$Required = $true
     )
     
+    Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Yellow
+    Write-Host "  Phase: $Name" -ForegroundColor Yellow
+    Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
-    Write-Host "Running: $TestName" -ForegroundColor White
-    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
-    
-    $testStart = Get-Date
     
     try {
-        $output = & $TestScript 2>&1
-        $exitCode = $LASTEXITCODE
-        $testEnd = Get-Date
-        $duration = ($testEnd - $testStart).TotalSeconds
+        & $Command
         
-        $result = @{
-            Name = $TestName
-            Category = $Category
-            Status = if ($exitCode -eq 0) { "PASSED" } else { "FAILED" }
-            Duration = [math]::Round($duration, 2)
-            ExitCode = $exitCode
-            Output = $output -join "`n"
-        }
-        
-        $script:testResults += $result
-        
-        if ($exitCode -eq 0) {
+        if ($LASTEXITCODE -eq 0 -or -not $Required) {
             Write-Host ""
-            Write-Host "[PASS] $TestName ($([math]::Round($duration, 2))s)" -ForegroundColor Green
-            $script:passedTests++
+            Write-Host "  ✓ $Name PASSED" -ForegroundColor Green
+            $script:PassedTests++
+            return $true
         } else {
             Write-Host ""
-            Write-Host "[FAIL] $TestName ($([math]::Round($duration, 2))s)" -ForegroundColor Red
-            $script:failedTests++
+            Write-Host "  ✗ $Name FAILED" -ForegroundColor Red
+            $script:FailedTests++
+            $script:AllPassed = $false
+            return $false
         }
     } catch {
-        $result = @{
-            Name = $TestName
-            Category = $Category
-            Status = "ERROR"
-            Duration = 0
-            ExitCode = -1
-            Output = $_.Exception.Message
-        }
-        
-        $script:testResults += $result
-        
         Write-Host ""
-        Write-Host "[ERROR] $TestName : $_" -ForegroundColor Red
-        $script:failedTests++
+        Write-Host "  ✗ $Name FAILED: $_" -ForegroundColor Red
+        $script:FailedTests++
+        $script:AllPassed = $false
+        return $false
     }
     
-    $script:totalTests++
+    $script:TotalTests++
 }
 
-function Round($value, $decimals) {
-    [math]::Round($value, $decimals)
+# Phase 1: System Health Check
+Run-TestPhase -Name "System Health Check" -Command {
+    & "$PSScriptRoot\qa-scripts\canton-health-check.ps1"
 }
 
-# PRE-FLIGHT CHECK
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Yellow
-Write-Host " Pre-Flight Checks" -ForegroundColor Yellow
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Yellow
-
-Write-Host ""
-Write-Host "Verifying prerequisites..." -ForegroundColor Yellow
-
-& .\test\utils\verify-backend.ps1
-
-if ($LASTEXITCODE -ne 0) {
+if (-not $AllPassed) {
     Write-Host ""
-    Write-Host "[FAIL] Pre-flight checks FAILED" -ForegroundColor Red
-    Write-Host "Please fix issues before running tests" -ForegroundColor Yellow
+    Write-Host "✗ System health check failed. Cannot proceed with tests." -ForegroundColor Red
     exit 1
 }
 
-Write-Host ""
-Write-Host "[PASS] Pre-flight checks PASSED" -ForegroundColor Green
-Start-Sleep -Seconds 2
+# Phase 2: Backend Unit Tests
+Run-TestPhase -Name "Backend Unit Tests" -Command {
+    Push-Location "$PSScriptRoot\..\backend"
+    Write-Host "Running Jest unit tests..." -ForegroundColor Gray
+    npm test -- --coverage --silent 2>&1 | Out-String | Write-Host
+    $exitCode = $LASTEXITCODE
+    Pop-Location
+    exit $exitCode
+}
 
-# SECTION 5.1: INFRASTRUCTURE TESTS
-Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host " Section 5.1: Infrastructure Health Checks" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-
-Run-Test "5.1.1: Canton Containers" ".\test\1-infrastructure\test-containers.ps1" "Infrastructure"
-Run-Test "5.1.2: Canton Domain" ".\test\1-infrastructure\test-domain.ps1" "Infrastructure"
-Run-Test "5.1.3: Party Verification" ".\test\1-infrastructure\test-parties.ps1" "Infrastructure"
-Run-Test "5.1.4: DAR Upload" ".\test\1-infrastructure\test-dar-upload.ps1" "Infrastructure"
-
-# SECTION 5.2: API TESTS
-Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host " Section 5.2: API Integration Tests" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-
-Run-Test "5.2.1: Health Endpoint" ".\test\2-api\test-health.ps1" "API"
-Run-Test "5.2.2: Parties Endpoint" ".\test\2-api\test-parties-endpoint.ps1" "API"
-Run-Test "5.2.3: Submit Contract" ".\test\2-api\test-contracts-submit.ps1" "API"
-Run-Test "5.2.4: Accept Contract" ".\test\2-api\test-contracts-accept.ps1" "API"
-Run-Test "5.2.5: Query Contracts" ".\test\2-api\test-contracts-query.ps1" "API"
-Run-Test "5.2.6: SSE Endpoint" ".\test\2-api\test-sse.ps1" "API"
-
-# SECTION 5.3: PRIVACY TESTS
-Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host " Section 5.3: Privacy Validation Tests" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-
-Run-Test "5.3.1: Two-Party Privacy" ".\test\3-privacy\test-two-party-privacy.ps1" "Privacy"
-Run-Test "5.3.2: Visibility Matrix" ".\test\3-privacy\test-visibility-matrix.ps1" "Privacy"
-
-# SUMMARY
-$endTime = Get-Date
-$totalDuration = ($endTime - $startTime).TotalSeconds
-
-Write-Host ""
-Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host " TEST SUMMARY" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Total Tests: $totalTests" -ForegroundColor White
-Write-Host "Passed: $passedTests" -ForegroundColor Green
-Write-Host "Failed: $failedTests" -ForegroundColor Red
-Write-Host "Duration: $([math]::Round($totalDuration, 2)) seconds" -ForegroundColor White
-Write-Host ""
-
-# Calculate pass rate
-$passRate = if ($totalTests -gt 0) { [math]::Round(($passedTests / $totalTests) * 100, 1) } else { 0 }
-Write-Host "Pass Rate: $passRate%" -ForegroundColor $(if ($passRate -ge 90) { "Green" } elseif ($passRate -ge 75) { "Yellow" } else { "Red" })
-
-# Display failed tests
-if ($failedTests -gt 0) {
-    Write-Host ""
-    Write-Host "Failed Tests:" -ForegroundColor Red
-    foreach ($test in $testResults) {
-        if ($test.Status -ne "PASSED") {
-            Write-Host "  [X] $($test.Name) ($($test.Category))" -ForegroundColor Red
+# Phase 3: Backend Integration Tests
+Run-TestPhase -Name "Backend Integration Tests" -Command {
+    Push-Location "$PSScriptRoot\..\backend"
+    Write-Host "Running integration tests (requires Canton + backend running)..." -ForegroundColor Gray
+    
+    # Check if backend is running
+    try {
+        $response = Invoke-RestMethod -Uri "http://localhost:3001/health" -Method Get -TimeoutSec 2 -ErrorAction Stop
+        
+        if ($response.status -ne "healthy") {
+            Write-Host "⚠ Backend is degraded, but proceeding with tests..." -ForegroundColor Yellow
         }
+    } catch {
+        Write-Host "⚠ Backend not running. Starting backend..." -ForegroundColor Yellow
+        Start-Process -FilePath "npm" -ArgumentList "run", "dev" -WorkingDirectory (Get-Location).Path -WindowStyle Hidden
+        Start-Sleep -Seconds 5
     }
+    
+    npm test -- test/integration/ --silent 2>&1 | Out-String | Write-Host
+    $exitCode = $LASTEXITCODE
+    Pop-Location
+    exit $exitCode
 }
 
-# Manual test reminders
-Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Yellow
-Write-Host " Manual Testing Required" -ForegroundColor Yellow
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "The following tests require manual verification:" -ForegroundColor White
-Write-Host "  [INFO]  5.4: End-to-End UI Tests (see test/4-e2e/test-full-workflow.md)" -ForegroundColor Yellow
-Write-Host "  [INFO]  5.5: Performance & Load Tests (visual inspection)" -ForegroundColor Yellow
-Write-Host ""
-
-# Save results to log file
-Write-Host "Saving results to: $logFile" -ForegroundColor Gray
-
-$logOutput = @"
-═══════════════════════════════════════════════════════════
- Phase 5: Integration Testing Results
-═══════════════════════════════════════════════════════════
-Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-Duration: $totalDuration seconds
-
-SUMMARY:
-  Total Tests: $totalTests
-  Passed: $passedTests
-  Failed: $failedTests
-  Pass Rate: $passRate%
-
-DETAILED RESULTS:
-═══════════════════════════════════════════════════════════
-
-"@
-
-foreach ($test in $testResults) {
-    $status = if ($test.Status -eq "PASSED") { "[PASS]" } else { "[FAIL]" }
-    $logOutput += "$status [$($test.Category)] $($test.Name)`n"
-    $logOutput += "   Status: $($test.Status)`n"
-    $logOutput += "   Duration: $($test.Duration)s`n"
-    if ($test.Status -ne "PASSED") {
-        $logOutput += "   Output: $($test.Output.Substring(0, [Math]::Min(500, $test.Output.Length)))...`n"
-    }
-    $logOutput += "`n"
+# Phase 4: API Smoke Tests
+Run-TestPhase -Name "API Smoke Tests" -Command {
+    & "$PSScriptRoot\qa-scripts\api-smoke-test.ps1"
 }
 
-$logOutput | Out-File -FilePath $logFile -Encoding UTF8
+# Phase 5: Privacy Validation
+Run-TestPhase -Name "Privacy Validation" -Command {
+    & "$PSScriptRoot\qa-scripts\privacy-validation.ps1"
+}
 
+# Calculate duration
+$EndTime = Get-Date
+$Duration = $EndTime - $StartTime
+$DurationFormatted = "{0:mm}m {0:ss}s" -f $Duration
+
+# Final Summary
 Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host " End Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "  Test Execution Summary" -ForegroundColor Cyan
+Write-Host "══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Test Phases Executed: $TotalTests" -ForegroundColor White
+Write-Host "  Passed: $PassedTests" -ForegroundColor Green
+Write-Host "  Failed: $FailedTests" -ForegroundColor Red
+Write-Host "  Duration: $DurationFormatted" -ForegroundColor Gray
 Write-Host ""
 
-# Exit with failure code if any tests failed
-if ($failedTests -gt 0) {
-    Write-Host "[FAIL] TESTING FAILED - $failedTests test(s) failed" -ForegroundColor Red
-    exit 1
-} else {
-    Write-Host "[PASS] ALL AUTOMATED TESTS PASSED" -ForegroundColor Green
+if ($AllPassed) {
+    Write-Host "  ✓ ALL TEST PHASES PASSED" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Next Steps:" -ForegroundColor Cyan
-    Write-Host "1. Complete manual E2E testing (test/4-e2e/test-full-workflow.md)" -ForegroundColor White
-    Write-Host "2. Run performance measurements" -ForegroundColor White
-    Write-Host "3. Document results in test report" -ForegroundColor White
-    Write-Host "4. Update IMPLEMENTATION_PLAN.md Phase 5 checklist" -ForegroundColor White
+    Write-Host "  System Status: READY FOR DEPLOYMENT" -ForegroundColor Green
     Write-Host ""
+    
+    # Display coverage summary if available
+    if (Test-Path "$PSScriptRoot\..\backend\coverage\coverage-summary.json") {
+        Write-Host "  Test Coverage Summary:" -ForegroundColor Yellow
+        $coverage = Get-Content "$PSScriptRoot\..\backend\coverage\coverage-summary.json" | ConvertFrom-Json
+        Write-Host "    Statements: $($coverage.total.statements.pct)%" -ForegroundColor Gray
+        Write-Host "    Branches:   $($coverage.total.branches.pct)%" -ForegroundColor Gray
+        Write-Host "    Functions:  $($coverage.total.functions.pct)%" -ForegroundColor Gray
+        Write-Host "    Lines:      $($coverage.total.lines.pct)%" -ForegroundColor Gray
+        Write-Host ""
+    }
+    
+    Write-Host "Next Steps:" -ForegroundColor Yellow
+    Write-Host "  1. Review coverage report: .\backend\coverage\lcov-report\index.html" -ForegroundColor Gray
+    Write-Host "  2. Run manual E2E tests (optional)" -ForegroundColor Gray
+    Write-Host "  3. Deploy to production" -ForegroundColor Gray
+    
     exit 0
+} else {
+    Write-Host "  ✗ SOME TEST PHASES FAILED" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  System Status: NOT READY FOR DEPLOYMENT" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Failed Phases:" -ForegroundColor Yellow
+    
+    # List failed phases (would need to track which ones failed)
+    Write-Host "  Review output above for error details" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Troubleshooting:" -ForegroundColor Yellow
+    Write-Host "  1. Check Canton containers: docker ps" -ForegroundColor Gray
+    Write-Host "  2. Check backend logs: docker logs canton-participant1" -ForegroundColor Gray
+    Write-Host "  3. Restart services if needed" -ForegroundColor Gray
+    Write-Host "  4. Consult COMPREHENSIVE_TESTING_GUIDE.md" -ForegroundColor Gray
+    
+    exit 1
 }
-

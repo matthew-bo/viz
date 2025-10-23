@@ -50,23 +50,45 @@ export const TransactionList: React.FC = () => {
 
   if (baseTransactions.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="h-full flex items-center justify-center"
+      >
         <div className="text-center text-gray-500 max-w-md mx-auto p-8">
-          <div className="text-6xl mb-4">🏦</div>
-          <div className="text-xl font-bold mb-2">Asset Exchange Platform</div>
-          <div className="text-base mb-4">
-            No Canton transactions found - this is expected for the new exchange system.
+          <motion.div 
+            className="text-6xl mb-4"
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            🏦
+          </motion.div>
+          <div className="text-xl font-bold mb-2 text-gray-800">Ready to Exchange Assets</div>
+          <div className="text-base mb-4 text-gray-600">
+            No transactions yet. Create your first exchange to get started!
           </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left text-sm">
-            <div className="font-semibold text-blue-900 mb-2">✨ New Features:</div>
-            <ul className="space-y-1 text-blue-800">
-              <li>• Click <strong>CREATE</strong> to propose asset exchanges</li>
-              <li>• View party inventories in the left sidebar</li>
-              <li>• Trade cash, real estate, and private equity</li>
+          <div className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-5 text-left text-sm shadow-lg">
+            <div className="font-bold text-blue-900 mb-3 flex items-center gap-2">
+              <span className="text-xl">✨</span>
+              <span>Quick Start Guide:</span>
+            </div>
+            <ul className="space-y-2 text-blue-800">
+              <li className="flex items-start gap-2">
+                <span className="font-bold">1.</span>
+                <span>Click <strong className="bg-blue-100 px-2 py-0.5 rounded font-semibold">CREATE</strong> button to propose an exchange</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">2.</span>
+                <span>View party inventories in the left sidebar</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">3.</span>
+                <span>Trade cash, real estate, and private equity assets</span>
+              </li>
             </ul>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 

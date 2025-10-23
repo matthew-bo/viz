@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import CountUp from 'react-countup';
 import { ChevronDown, Building2, TrendingUp } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
-import { formatCurrency, formatRWAType } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 import { apiClient } from '../api/client';
 import { PartyInventory } from '../types';
 
@@ -61,9 +62,6 @@ export const BusinessPanel: React.FC = () => {
     setSelectedAsset
   } = useAppStore();
 
-  // Track which party's RWA portfolio is expanded
-  const [expandedRWA, setExpandedRWA] = useState<string | null>(null);
-  
   // Track which party's inventory is expanded
   const [expandedInventory, setExpandedInventory] = useState<string | null>(null);
   
@@ -175,9 +173,9 @@ export const BusinessPanel: React.FC = () => {
               <div className={`absolute inset-0 bg-gradient-to-br ${config.gradient} opacity-50`} />
               
               {/* Content */}
-              <div className="relative p-4">
+              <div className="relative p-3">
                 {/* Header: Icon + Name + Activity Pulse */}
-                <div className="flex items-start gap-3 mb-4">
+                <div className="flex items-start gap-3 mb-3">
                   {/* Large Icon Circle */}
                   <div 
                     className="relative flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm"
@@ -220,112 +218,42 @@ export const BusinessPanel: React.FC = () => {
                 </div>
 
                 {/* Metrics Grid */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   {/* Sent */}
-                  <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2.5 border border-gray-200/50">
+                  <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-200/50">
                     <div className="text-gray-500 text-xs font-medium mb-0.5 flex items-center gap-1">
                       <span>📤</span>
                       <span>Sent</span>
                     </div>
                     <div className="font-bold text-gray-900 text-lg">
-                      {metrics.sent}
+                      <CountUp end={metrics.sent} duration={0.5} />
                     </div>
                   </div>
 
                   {/* Received */}
-                  <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2.5 border border-gray-200/50">
+                  <div className="bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-gray-200/50">
                     <div className="text-gray-500 text-xs font-medium mb-0.5 flex items-center gap-1">
                       <span>📥</span>
                       <span>Received</span>
                     </div>
                     <div className="font-bold text-gray-900 text-lg">
-                      {metrics.received}
+                      <CountUp end={metrics.received} duration={0.5} />
                     </div>
                   </div>
 
                   {/* Total Volume - Full Width */}
-                  <div className="col-span-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
-                    <div className="text-gray-600 text-xs font-semibold mb-1 flex items-center gap-1">
+                  <div className="col-span-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-2 border border-gray-200">
+                    <div className="text-gray-600 text-xs font-semibold mb-0.5 flex items-center gap-1">
                       <span>💰</span>
                       <span>Total Volume</span>
                     </div>
                     <div className="font-extrabold text-gray-900 text-xl">
-                      {formatCurrency(metrics.volume)}
+                      $<CountUp end={metrics.volume} duration={0.8} separator="," decimals={2} decimal="." />
                     </div>
                   </div>
                 </div>
 
-                {/* RWA Portfolio Section */}
-                {(() => {
-                  const { breakdown, totalValue } = getRWABreakdown(party.displayName);
-                  const isExpanded = expandedRWA === party.displayName;
-                  const hasRWA = breakdown.length > 0 && totalValue > 0;
-
-                  if (!hasRWA) return null;
-
-                  return (
-                    <div className="mt-4 pt-4 border-t border-gray-200/50">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpandedRWA(isExpanded ? null : party.displayName);
-                        }}
-                        className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <span>📊</span>
-                          <span>Asset Portfolio</span>
-                        </span>
-                        <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="mt-3 space-y-2 overflow-hidden"
-                          >
-                            {breakdown.map((rwa) => {
-                              const rwaConfig = getRWAConfig(rwa.type);
-                              return (
-                                <div key={rwa.type} className="bg-white/60 backdrop-blur-sm rounded-lg p-2.5 border border-gray-200/50">
-                                  <div className="flex items-center justify-between mb-1.5">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-lg">{rwaConfig.icon}</span>
-                                      <span className="text-xs font-medium text-gray-700">
-                                        {formatRWAType(rwa.type)}
-                                      </span>
-                                    </div>
-                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${rwaConfig.bgColor} ${rwaConfig.color}`}>
-                                      {rwa.percentage.toFixed(0)}%
-                                    </span>
-                                  </div>
-                                  {/* Progress bar */}
-                                  <div className="w-full bg-gray-200 rounded-full h-2 mb-1.5 overflow-hidden">
-                                    <motion.div
-                                      initial={{ width: 0 }}
-                                      animate={{ width: `${rwa.percentage}%` }}
-                                      transition={{ duration: 0.5, delay: 0.1 }}
-                                      className={`h-full rounded-full ${rwaConfig.bgColor.replace('100', '500')}`}
-                                    />
-                                  </div>
-                                  <div className="text-xs font-bold text-gray-900">
-                                    {formatCurrency(rwa.value)}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })()}
-
-                {/* Inventory Section */}
+                {/* Assets & Holdings Section (Combined Inventory + RWA Summary) */}
                 {(() => {
                   const inventory = inventories.get(party.partyId);
                   const isExpanded = expandedInventory === party.displayName;
@@ -340,7 +268,7 @@ export const BusinessPanel: React.FC = () => {
                   
                   return (
                     <div className="mt-4 pt-4 border-t border-gray-200/50">
-                      {/* Enhanced Header with Asset Count */}
+                      {/* Enhanced Header with Asset Count and RWA Preview */}
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
@@ -350,12 +278,12 @@ export const BusinessPanel: React.FC = () => {
                       >
                         <div className="flex items-center gap-2">
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg transition-transform group-hover:scale-110 ${isExpanded ? 'bg-blue-100' : 'bg-white border-2 border-gray-200'}`}>
-                            🏦
+                            💼
                           </div>
                           <div>
-                            <div className="text-sm font-bold text-gray-800">Asset Inventory</div>
+                            <div className="text-sm font-bold text-gray-800">Assets & Holdings</div>
                             <div className="text-xs text-gray-500">
-                              {totalAssets} {totalAssets === 1 ? 'asset' : 'assets'}
+                              {totalAssets} {totalAssets === 1 ? 'asset' : 'assets'} • {formatCurrency(inventory.cash)} cash
                             </div>
                           </div>
                         </div>
@@ -397,7 +325,7 @@ export const BusinessPanel: React.FC = () => {
                       </div>
 
                       <AnimatePresence>
-                        {isExpanded && hasAssets && (
+                        {isExpanded && (
                           <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
@@ -405,6 +333,43 @@ export const BusinessPanel: React.FC = () => {
                             transition={{ duration: 0.2 }}
                             className="mt-3"
                           >
+                            {/* Compact RWA Summary */}
+                            {(() => {
+                              const { breakdown } = getRWABreakdown(party.displayName);
+                              if (breakdown.length > 0) {
+                                return (
+                                  <div className="mb-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-2.5">
+                                    <div className="text-xs font-semibold text-purple-800 mb-2 flex items-center gap-1.5">
+                                      <span>📊</span>
+                                      <span>Transaction Activity by Asset Type</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {breakdown.slice(0, 4).map((rwa) => {
+                                        const rwaConfig = getRWAConfig(rwa.type);
+                                        return (
+                                          <div 
+                                            key={rwa.type}
+                                            className={`text-xs px-2 py-1 rounded-full font-medium ${rwaConfig.bgColor} ${rwaConfig.color} flex items-center gap-1`}
+                                          >
+                                            <span>{rwaConfig.icon}</span>
+                                            <span>{rwa.percentage.toFixed(0)}%</span>
+                                          </div>
+                                        );
+                                      })}
+                                      {breakdown.length > 4 && (
+                                        <div className="text-xs px-2 py-1 rounded-full font-medium bg-gray-100 text-gray-600">
+                                          +{breakdown.length - 4} more
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+
+                            {hasAssets && (
+                              <>
                             {/* View Toggle */}
                             <div className="flex items-center justify-between mb-2 px-1">
                               <span className="text-xs font-semibold text-gray-600">View Mode</span>
@@ -649,6 +614,8 @@ export const BusinessPanel: React.FC = () => {
                             )}
                             </div>
                             {/* Close Scrollable Container */}
+                              </>
+                            )}
                           </motion.div>
                         )}
                       </AnimatePresence>
