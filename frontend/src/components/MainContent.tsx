@@ -194,9 +194,29 @@ export const MainContent: React.FC = () => {
             >
               <TransactionTimeline 
                 transaction={selectedTransaction} 
-                onAccept={selectedTransaction.status === 'pending' ? handleAccept : undefined}
-                onCancel={selectedTransaction.status === 'pending' && isExchangeTransaction(selectedTransaction) ? handleCancel : undefined}
-                onReject={selectedTransaction.status === 'pending' && isExchangeTransaction(selectedTransaction) ? handleReject : undefined}
+                onAccept={
+                  selectedTransaction.status === 'pending' && 
+                  (
+                    !isExchangeTransaction(selectedTransaction) || 
+                    selectedBusiness === selectedTransaction.payload.receiver
+                  )
+                    ? handleAccept 
+                    : undefined
+                }
+                onCancel={
+                  selectedTransaction.status === 'pending' && 
+                  isExchangeTransaction(selectedTransaction) && 
+                  selectedBusiness === selectedTransaction.payload.sender
+                    ? handleCancel 
+                    : undefined
+                }
+                onReject={
+                  selectedTransaction.status === 'pending' && 
+                  isExchangeTransaction(selectedTransaction) && 
+                  selectedBusiness === selectedTransaction.payload.receiver
+                    ? handleReject 
+                    : undefined
+                }
                 isProcessing={isProcessing(selectedTransaction.contractId)}
               />
             </motion.div>
