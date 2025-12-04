@@ -58,7 +58,12 @@ class ExchangeService {
     
     if (!exchange) return false;
     if (exchange.status !== 'pending') return false;
-    if (exchange.toParty !== acceptingPartyId) return false;
+    
+    // Check if accepting party matches (compare both full ID and display name)
+    const isRecipient = exchange.toParty === acceptingPartyId || 
+                        exchange.toPartyName === acceptingPartyId ||
+                        exchange.toParty.startsWith(acceptingPartyId + '::');
+    if (!isRecipient) return false;
 
     // Lock responder's assets first (they're authorizing by accepting)
     const responderLock = this.lockOffering(exchange.toParty, exchange.requesting);
@@ -230,7 +235,12 @@ class ExchangeService {
     
     if (!exchange) return false;
     if (exchange.status !== 'pending') return false;
-    if (exchange.fromParty !== requestingPartyId) return false;
+    
+    // Check if requesting party is the proposer (compare both full ID and display name)
+    const isProposer = exchange.fromParty === requestingPartyId || 
+                       exchange.fromPartyName === requestingPartyId ||
+                       exchange.fromParty.startsWith(requestingPartyId + '::');
+    if (!isProposer) return false;
 
     // Release proposer's offering from escrow
     this.releaseOfferingFromEscrow(exchange.fromParty, exchange.offering);
@@ -247,7 +257,12 @@ class ExchangeService {
     
     if (!exchange) return false;
     if (exchange.status !== 'pending') return false;
-    if (exchange.toParty !== rejectingPartyId) return false;
+    
+    // Check if rejecting party is the responder (compare both full ID and display name)
+    const isRecipient = exchange.toParty === rejectingPartyId || 
+                        exchange.toPartyName === rejectingPartyId ||
+                        exchange.toParty.startsWith(rejectingPartyId + '::');
+    if (!isRecipient) return false;
 
     // Release proposer's offering from escrow (return to proposer)
     this.releaseOfferingFromEscrow(exchange.fromParty, exchange.offering);
