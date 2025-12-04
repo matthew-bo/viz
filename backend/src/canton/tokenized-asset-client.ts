@@ -16,25 +16,23 @@ import type { StringValue } from 'ms';
 import { config } from '../config';
 import { PartyConfig } from '../types';
 
-import {
-  CashHolding,
-  CashHoldingData,
-  RealEstateToken,
-  RealEstateTokenData,
-  PrivateEquityToken,
-  PrivateEquityTokenData,
-  RequestSpec
-} from '../daml-types/payment-demo-0.0.1/lib/Asset';
+// Use generated DAML types with proper encoders/decoders
+import * as Asset from '@payment-demo/payment-demo-0.0.1/lib/Asset';
+import * as AtomicExchange from '@payment-demo/payment-demo-0.0.1/lib/AtomicExchange';
 
-import {
-  EscrowedExchangeProposal,
-  EscrowedExchangeProposalData,
-  CompletedExchange,
-  CompletedExchangeData,
-  ProposeExchangeWithCash,
-  ProposeExchangeWithRealEstate,
-  ProposeExchangeWithPrivateEquity
-} from '../daml-types/payment-demo-0.0.1/lib/AtomicExchange';
+// Re-export for convenience
+const CashHolding = Asset.CashHolding;
+const RealEstateToken = Asset.RealEstateToken;
+const PrivateEquityToken = Asset.PrivateEquityToken;
+const RequestSpec = Asset.RequestSpec;
+const EscrowedExchangeProposal = AtomicExchange.EscrowedExchangeProposal;
+const CompletedExchange = AtomicExchange.CompletedExchange;
+const ProposeExchangeWithCash = AtomicExchange.ProposeExchangeWithCash;
+const ProposeExchangeWithRealEstate = AtomicExchange.ProposeExchangeWithRealEstate;
+const ProposeExchangeWithPrivateEquity = AtomicExchange.ProposeExchangeWithPrivateEquity;
+
+// Type aliases
+type RequestSpec = Asset.RequestSpec;
 
 // ============================================================
 // API RESPONSE TYPES
