@@ -56,18 +56,28 @@ class ExchangeService {
   acceptExchange(exchangeId: string, acceptingPartyId: string): boolean {
     const exchange = this.exchanges.get(exchangeId);
     
-    if (!exchange) return false;
-    if (exchange.status !== 'pending') return false;
+    if (!exchange) {
+      console.log(`Accept failed: Exchange ${exchangeId} not found`);
+      return false;
+    }
+    if (exchange.status !== 'pending') {
+      console.log(`Accept failed: Exchange ${exchangeId} status is ${exchange.status}, not pending`);
+      return false;
+    }
     
     // Check if accepting party matches (compare both full ID and display name)
     const isRecipient = exchange.toParty === acceptingPartyId || 
                         exchange.toPartyName === acceptingPartyId ||
                         exchange.toParty.startsWith(acceptingPartyId + '::');
-    if (!isRecipient) return false;
+    if (!isRecipient) {
+      console.log(`Accept failed: ${acceptingPartyId} is not recipient. Expected: ${exchange.toPartyName} (${exchange.toParty})`);
+      return false;
+    }
 
     // Lock responder's assets first (they're authorizing by accepting)
     const responderLock = this.lockOffering(exchange.toParty, exchange.requesting);
     if (!responderLock.success) {
+      console.log(`Accept failed: Could not lock responder assets: ${responderLock.error}`);
       return false;
     }
 
@@ -77,8 +87,10 @@ class ExchangeService {
     if (success) {
       exchange.status = 'accepted';
       exchange.acceptedAt = new Date();
+      console.log(`✓ Exchange ${exchangeId} accepted`);
       return true;
     } else {
+      console.log(`Accept failed: executeExchange returned false`);
       // Rollback responder's lock on failure
       this.releaseOfferingFromEscrow(exchange.toParty, exchange.requesting);
       return false;
