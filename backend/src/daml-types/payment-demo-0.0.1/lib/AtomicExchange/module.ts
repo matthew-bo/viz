@@ -43,7 +43,7 @@ export type AcceptWithPrivateEquityArgs = {
   responderPE: damlTypes.ContractId<PrivateEquityTokenData>;
 };
 
-const ESCROWED_PROPOSAL_TEMPLATE_ID = 'payment-demo-0.0.1:AtomicExchange:EscrowedExchangeProposal' as const;
+const ESCROWED_PROPOSAL_TEMPLATE_ID = 'AtomicExchange:EscrowedExchangeProposal' as const;
 
 export const EscrowedExchangeProposal = {
   templateId: ESCROWED_PROPOSAL_TEMPLATE_ID,
@@ -90,7 +90,7 @@ export type CompletedExchangeData = {
   completedAt: damlTypes.Time;
 };
 
-const COMPLETED_EXCHANGE_TEMPLATE_ID = 'payment-demo-0.0.1:AtomicExchange:CompletedExchange' as const;
+const COMPLETED_EXCHANGE_TEMPLATE_ID = 'AtomicExchange:CompletedExchange' as const;
 
 export const CompletedExchange = {
   templateId: COMPLETED_EXCHANGE_TEMPLATE_ID,
@@ -110,7 +110,7 @@ export type ProposeExchangeWithCashData = {
   description: damlTypes.Optional<string>;
 };
 
-const PROPOSE_WITH_CASH_TEMPLATE_ID = 'payment-demo-0.0.1:AtomicExchange:ProposeExchangeWithCash' as const;
+const PROPOSE_WITH_CASH_TEMPLATE_ID = 'AtomicExchange:ProposeExchangeWithCash' as const;
 
 export const ProposeExchangeWithCash = {
   templateId: PROPOSE_WITH_CASH_TEMPLATE_ID,
@@ -131,7 +131,7 @@ export type ProposeExchangeWithRealEstateData = {
   description: damlTypes.Optional<string>;
 };
 
-const PROPOSE_WITH_RE_TEMPLATE_ID = 'payment-demo-0.0.1:AtomicExchange:ProposeExchangeWithRealEstate' as const;
+const PROPOSE_WITH_RE_TEMPLATE_ID = 'AtomicExchange:ProposeExchangeWithRealEstate' as const;
 
 export const ProposeExchangeWithRealEstate = {
   templateId: PROPOSE_WITH_RE_TEMPLATE_ID,
@@ -152,7 +152,7 @@ export type ProposeExchangeWithPrivateEquityData = {
   description: damlTypes.Optional<string>;
 };
 
-const PROPOSE_WITH_PE_TEMPLATE_ID = 'payment-demo-0.0.1:AtomicExchange:ProposeExchangeWithPrivateEquity' as const;
+const PROPOSE_WITH_PE_TEMPLATE_ID = 'AtomicExchange:ProposeExchangeWithPrivateEquity' as const;
 
 export const ProposeExchangeWithPrivateEquity = {
   templateId: PROPOSE_WITH_PE_TEMPLATE_ID,

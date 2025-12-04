@@ -51,7 +51,7 @@ export type TransferCashArgs = {
   recipient: damlTypes.Party;
 };
 
-const CASH_HOLDING_TEMPLATE_ID = 'payment-demo-0.0.1:Asset:CashHolding' as const;
+const CASH_HOLDING_TEMPLATE_ID = 'Asset:CashHolding' as const;
 
 export const CashHolding = {
   templateId: CASH_HOLDING_TEMPLATE_ID,
@@ -80,7 +80,7 @@ export type TransferRealEstateArgs = {
   newOwner: damlTypes.Party;
 };
 
-const REAL_ESTATE_TOKEN_TEMPLATE_ID = 'payment-demo-0.0.1:Asset:RealEstateToken' as const;
+const REAL_ESTATE_TOKEN_TEMPLATE_ID = 'Asset:RealEstateToken' as const;
 
 export const RealEstateToken = {
   templateId: REAL_ESTATE_TOKEN_TEMPLATE_ID,
@@ -108,7 +108,7 @@ export type TransferPrivateEquityArgs = {
   newOwner: damlTypes.Party;
 };
 
-const PRIVATE_EQUITY_TOKEN_TEMPLATE_ID = 'payment-demo-0.0.1:Asset:PrivateEquityToken' as const;
+const PRIVATE_EQUITY_TOKEN_TEMPLATE_ID = 'Asset:PrivateEquityToken' as const;
 
 export const PrivateEquityToken = {
   templateId: PRIVATE_EQUITY_TOKEN_TEMPLATE_ID,
