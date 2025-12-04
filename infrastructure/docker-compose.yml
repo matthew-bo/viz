@@ -24,7 +24,8 @@ services:
     volumes:
       - ./canton/participant1.conf:/canton/participant1.conf:ro
       - ../daml/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
-    command: daemon --config /canton/participant1.conf
+      - ./canton/scripts:/canton/scripts:ro
+    command: daemon --config /canton/participant1.conf --bootstrap /canton/scripts/upload-dar.sc
     restart: unless-stopped
     networks:
       - canton-network
@@ -41,7 +42,8 @@ services:
     volumes:
       - ./canton/participant2.conf:/canton/participant2.conf:ro
       - ../daml/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
-    command: daemon --config /canton/participant2.conf
+      - ./canton/scripts:/canton/scripts:ro
+    command: daemon --config /canton/participant2.conf --bootstrap /canton/scripts/upload-dar-p2.sc
     restart: unless-stopped
     networks:
       - canton-network
@@ -58,7 +60,8 @@ services:
     volumes:
       - ./canton/participant3.conf:/canton/participant3.conf:ro
       - ../daml/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
-    command: daemon --config /canton/participant3.conf
+      - ./canton/scripts:/canton/scripts:ro
+    command: daemon --config /canton/participant3.conf --bootstrap /canton/scripts/upload-dar-p3.sc
     restart: unless-stopped
     networks:
       - canton-network

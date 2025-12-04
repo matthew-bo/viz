@@ -1,18 +1,15 @@
-// File: infrastructure/canton/scripts/upload-dar.sc
+// Bootstrap script for Canton participant
+// Automatically uploads the payment-demo DAR on startup
 
-println("Uploading DAR to all participants...")
+import java.io.File
 
 val darPath = "/canton/payment-demo-0.0.1.dar"
+val darFile = new File(darPath)
 
-// Upload to all three participants
-participant1.dars.upload(darPath)
-println("✓ Uploaded to participant1")
-
-participant2.dars.upload(darPath)
-println("✓ Uploaded to participant2")
-
-participant3.dars.upload(darPath)
-println("✓ Uploaded to participant3")
-
-println("DAR successfully uploaded to all participants!")
-
+if (darFile.exists()) {
+  println(s"Uploading DAR from $darPath...")
+  participant1.dars.upload(darPath)
+  println("DAR uploaded successfully!")
+} else {
+  println(s"WARNING: DAR file not found at $darPath")
+}
