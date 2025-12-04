@@ -23,7 +23,7 @@ services:
       - "7011:7011"
     volumes:
       - ./canton/participant1.conf:/canton/participant1.conf:ro
-      - ../daml/.daml/dist/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
+      - ../daml/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
     command: daemon --config /canton/participant1.conf
     restart: unless-stopped
     networks:
@@ -40,7 +40,7 @@ services:
       - "7021:7021"
     volumes:
       - ./canton/participant2.conf:/canton/participant2.conf:ro
-      - ../daml/.daml/dist/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
+      - ../daml/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
     command: daemon --config /canton/participant2.conf
     restart: unless-stopped
     networks:
@@ -57,7 +57,7 @@ services:
       - "7031:7031"
     volumes:
       - ./canton/participant3.conf:/canton/participant3.conf:ro
-      - ../daml/.daml/dist/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
+      - ../daml/payment-demo-0.0.1.dar:/canton/payment-demo-0.0.1.dar:ro
     command: daemon --config /canton/participant3.conf
     restart: unless-stopped
     networks:
