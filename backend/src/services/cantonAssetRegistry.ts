@@ -2,23 +2,26 @@
  * Canton Asset Registry
  * 
  * Bridge between in-memory asset IDs and Canton contract IDs.
- * 
- * This service:
- * 1. Creates assets on Canton ledger at startup
- * 2. Maintains a mapping of assetId -> contractId
- * 3. Provides lookup methods for exchange operations
- * 
- * When Canton is not available, falls back gracefully.
+ * Uses the raw HTTP Canton client for direct ledger interaction.
  */
 
-import { tokenizedAssetClient, TokenizedCashBalance, TokenizedRealEstate, TokenizedPrivateEquity } from '../canton/tokenized-asset-client';
+import {
+  createCashHolding,
+  createRealEstateToken,
+  createPrivateEquityToken,
+  getCantonInventory,
+  checkCantonHealth,
+  CashHoldingInfo,
+  RealEstateInfo,
+  PrivateEquityInfo
+} from '../canton/canton-asset-service';
 
 interface AssetMapping {
-  assetId: string;           // In-memory ID (e.g., "re_empire_state")
-  contractId: string;        // Canton contract ID
+  assetId: string;
+  contractId: string;
   type: 'cash' | 'real_estate' | 'private_equity';
-  owner: string;             // Party display name
-  details: any;              // Asset-specific data
+  owner: string;
+  details: any;
 }
 
 interface CashMapping {
@@ -30,13 +33,12 @@ interface CashMapping {
 
 class CantonAssetRegistry {
   private assetMap: Map<string, AssetMapping> = new Map();
-  private cashMap: Map<string, CashMapping[]> = new Map(); // owner -> cash holdings
+  private cashMap: Map<string, CashMapping[]> = new Map();
   private initialized = false;
   private cantonAvailable = false;
 
   /**
    * Initialize assets on Canton ledger
-   * Creates all the assets that exist in the in-memory system
    */
   async initialize(seedData: {
     cash: Array<{ owner: string; amount: number }>;
@@ -61,26 +63,26 @@ class CantonAssetRegistry {
     const errors: string[] = [];
     let created = 0;
 
+    // Check Canton availability
     try {
-      // Test Canton availability
-      await tokenizedAssetClient.getTokenizedInventory('TechBank');
-      this.cantonAvailable = true;
-      console.log('✓ Canton ledger available for tokenized assets');
+      this.cantonAvailable = await checkCantonHealth();
+      if (!this.cantonAvailable) {
+        console.log('⚠ Canton ledger not available - using in-memory only');
+        this.initialized = true;
+        return { success: false, created: 0, errors: ['Canton not available'] };
+      }
+      console.log('✓ Canton ledger available');
     } catch (error) {
-      console.log('⚠ Canton ledger not available - using in-memory only');
+      console.log('⚠ Canton health check failed - using in-memory only');
       this.cantonAvailable = false;
       this.initialized = true;
-      return { success: false, created: 0, errors: ['Canton not available'] };
+      return { success: false, created: 0, errors: ['Canton health check failed'] };
     }
 
     // Create cash holdings
     for (const cash of seedData.cash) {
       try {
-        const result = await tokenizedAssetClient.createCashHolding(
-          cash.owner,
-          cash.amount,
-          'USD'
-        );
+        const result = await createCashHolding(cash.owner, cash.amount, 'USD');
         
         const ownerCash = this.cashMap.get(cash.owner) || [];
         ownerCash.push({
@@ -92,15 +94,17 @@ class CantonAssetRegistry {
         this.cashMap.set(cash.owner, ownerCash);
         created++;
         console.log(`  ✓ Created ${cash.owner} cash: $${cash.amount.toLocaleString()}`);
-      } catch (error) {
-        errors.push(`Cash ${cash.owner}: ${error}`);
+      } catch (error: any) {
+        const msg = `Cash ${cash.owner}: ${error.message || error}`;
+        errors.push(msg);
+        console.log(`  ✗ ${msg}`);
       }
     }
 
     // Create real estate tokens
     for (const re of seedData.realEstate) {
       try {
-        const result = await tokenizedAssetClient.createRealEstateToken(
+        const result = await createRealEstateToken(
           re.owner,
           re.assetId,
           re.name,
@@ -119,15 +123,17 @@ class CantonAssetRegistry {
         });
         created++;
         console.log(`  ✓ Created ${re.owner} RE: ${re.name}`);
-      } catch (error) {
-        errors.push(`RE ${re.name}: ${error}`);
+      } catch (error: any) {
+        const msg = `RE ${re.name}: ${error.message || error}`;
+        errors.push(msg);
+        console.log(`  ✗ ${msg}`);
       }
     }
 
     // Create private equity tokens
     for (const pe of seedData.privateEquity) {
       try {
-        const result = await tokenizedAssetClient.createPrivateEquityToken(
+        const result = await createPrivateEquityToken(
           pe.owner,
           pe.assetId,
           pe.companyName,
@@ -145,13 +151,25 @@ class CantonAssetRegistry {
         });
         created++;
         console.log(`  ✓ Created ${pe.owner} PE: ${pe.companyName}`);
-      } catch (error) {
-        errors.push(`PE ${pe.companyName}: ${error}`);
+      } catch (error: any) {
+        const msg = `PE ${pe.companyName}: ${error.message || error}`;
+        errors.push(msg);
+        console.log(`  ✗ ${msg}`);
       }
     }
 
     this.initialized = true;
-    return { success: errors.length === 0, created, errors };
+    
+    // If we created any assets, consider it a partial success
+    if (created > 0 && errors.length > 0) {
+      console.log(`⚠ Partial tokenization: ${created} created, ${errors.length} errors`);
+      return { success: false, created, errors };
+    } else if (created > 0) {
+      console.log(`✓ Full tokenization complete: ${created} assets created`);
+      return { success: true, created, errors: [] };
+    } else {
+      return { success: false, created: 0, errors };
+    }
   }
 
   /**
@@ -187,7 +205,7 @@ class CantonAssetRegistry {
   }
 
   /**
-   * Update mapping after exchange (ownership changed)
+   * Update mapping after exchange
    */
   updateAssetOwner(assetId: string, newOwner: string, newContractId: string): void {
     const mapping = this.assetMap.get(assetId);
@@ -198,14 +216,7 @@ class CantonAssetRegistry {
   }
 
   /**
-   * Update cash holdings after transfer
-   */
-  updateCashHoldings(owner: string, holdings: CashMapping[]): void {
-    this.cashMap.set(owner, holdings);
-  }
-
-  /**
-   * Refresh mappings from Canton (after an exchange)
+   * Refresh mappings from Canton
    */
   async refreshFromCanton(): Promise<void> {
     if (!this.cantonAvailable) return;
@@ -214,7 +225,7 @@ class CantonAssetRegistry {
       const parties = ['TechBank', 'GlobalCorp', 'RetailFinance'];
       
       for (const partyName of parties) {
-        const inventory = await tokenizedAssetClient.getTokenizedInventory(partyName);
+        const inventory = await getCantonInventory(partyName);
         
         // Update cash mappings
         this.cashMap.set(partyName, inventory.cash.map(c => ({
@@ -272,36 +283,6 @@ class CantonAssetRegistry {
   isCantonAvailable(): boolean {
     return this.cantonAvailable;
   }
-
-  /**
-   * Get full inventory for a party (combining cash and assets)
-   */
-  async getPartyInventory(owner: string): Promise<{
-    displayName: string;
-    cash: number;
-    cashContractId: string | null;
-    realEstateAssets: AssetMapping[];
-    privateEquityAssets: AssetMapping[];
-    escrow: { cash: number; assets: string[] };
-  }> {
-    const cashHoldings = this.getPartyCash(owner);
-    const totalCash = cashHoldings.reduce((sum, c) => sum + c.amount, 0);
-    const primaryCashContract = cashHoldings[0]?.contractId || null;
-
-    const allAssets = this.getPartyAssets(owner);
-    const realEstateAssets = allAssets.filter(a => a.type === 'real_estate');
-    const privateEquityAssets = allAssets.filter(a => a.type === 'private_equity');
-
-    return {
-      displayName: owner,
-      cash: totalCash,
-      cashContractId: primaryCashContract,
-      realEstateAssets,
-      privateEquityAssets,
-      escrow: { cash: 0, assets: [] } // Escrow is now in Canton proposals
-    };
-  }
 }
 
 export const cantonAssetRegistry = new CantonAssetRegistry();
-
