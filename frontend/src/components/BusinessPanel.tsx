@@ -81,9 +81,8 @@ export const BusinessPanel: React.FC = () => {
           inventoryMap.set(inv.partyId, inv);
         });
         setInventories(inventoryMap);
-        console.log('✅ Inventories refreshed:', allInventories.length, 'parties');
-      } catch (error) {
-        console.error('Failed to load inventories:', error);
+      } catch {
+        // Failed to load inventories
       }
     }
     

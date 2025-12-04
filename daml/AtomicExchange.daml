@@ -1,0 +1,300 @@
+module AtomicExchange where
+
+import Asset
+
+-- ============================================================
+-- ATOMIC EXCHANGE (Delivery vs Payment)
+-- 
+-- TRUE ESCROW PATTERN:
+-- 1. Proposer exercises ProposeExchange on their asset
+--    → Archives the asset, creates EscrowedExchangeProposal
+-- 2. Responder exercises Accept with their asset
+--    → Atomic swap: responder's asset to proposer,
+--      escrowed asset recreated for responder
+-- 3. OR: Cancel/Reject returns escrowed asset to proposer
+-- ============================================================
+
+-- ============================================================
+-- ESCROWED EXCHANGE PROPOSAL
+-- 
+-- This contract holds the escrowed asset data. The original
+-- asset contract has been archived - this IS the escrow.
+-- ============================================================
+template EscrowedExchangeProposal
+  with
+    proposer: Party
+    responder: Party
+    proposerName: Text
+    responderName: Text
+    
+    -- Escrowed asset (original was archived when this was created)
+    escrowedCash: Optional EscrowedCash
+    escrowedRealEstate: Optional EscrowedRealEstate
+    escrowedPrivateEquity: Optional EscrowedPrivateEquity
+    
+    -- What proposer wants in return
+    requesting: RequestSpec
+    
+    description: Optional Text
+    createdAt: Time
+  where
+    signatory proposer
+    observer responder
+    
+    -- Accept with cash
+    choice AcceptWithCash : ContractId CompletedExchange
+      with responderCash: ContractId CashHolding
+      controller responder
+      do
+        now <- getTime
+        
+        -- Transfer responder's cash to proposer
+        cash <- fetch responderCash
+        assert (cash.owner == responder)
+        exercise responderCash TransferCash with recipient = proposer
+        
+        -- Recreate escrowed asset for responder
+        recreateAssetFor responder escrowedCash escrowedRealEstate escrowedPrivateEquity
+        
+        create CompletedExchange with
+          proposer; responder; proposerName; responderName
+          proposerGave = describeEscrowed escrowedCash escrowedRealEstate escrowedPrivateEquity
+          responderGave = "Cash: " <> show cash.amount <> " " <> cash.currency
+          description; createdAt
+          completedAt = now
+    
+    -- Accept with real estate
+    choice AcceptWithRealEstate : ContractId CompletedExchange
+      with responderRE: ContractId RealEstateToken
+      controller responder
+      do
+        now <- getTime
+        
+        re <- fetch responderRE
+        assert (re.owner == responder)
+        exercise responderRE TransferRealEstate with newOwner = proposer
+        
+        recreateAssetFor responder escrowedCash escrowedRealEstate escrowedPrivateEquity
+        
+        create CompletedExchange with
+          proposer; responder; proposerName; responderName
+          proposerGave = describeEscrowed escrowedCash escrowedRealEstate escrowedPrivateEquity
+          responderGave = "Real Estate: " <> re.name
+          description; createdAt
+          completedAt = now
+    
+    -- Accept with private equity
+    choice AcceptWithPrivateEquity : ContractId CompletedExchange
+      with responderPE: ContractId PrivateEquityToken
+      controller responder
+      do
+        now <- getTime
+        
+        pe <- fetch responderPE
+        assert (pe.owner == responder)
+        exercise responderPE TransferPrivateEquity with newOwner = proposer
+        
+        recreateAssetFor responder escrowedCash escrowedRealEstate escrowedPrivateEquity
+        
+        create CompletedExchange with
+          proposer; responder; proposerName; responderName
+          proposerGave = describeEscrowed escrowedCash escrowedRealEstate escrowedPrivateEquity
+          responderGave = "Private Equity: " <> pe.companyName
+          description; createdAt
+          completedAt = now
+    
+    -- Proposer cancels: return escrowed asset
+    choice CancelProposal : ()
+      controller proposer
+      do
+        recreateAssetFor proposer escrowedCash escrowedRealEstate escrowedPrivateEquity
+    
+    -- Responder rejects: return to proposer
+    choice RejectProposal : ()
+      controller responder
+      do
+        recreateAssetFor proposer escrowedCash escrowedRealEstate escrowedPrivateEquity
+
+
+-- ============================================================
+-- COMPLETED EXCHANGE - Immutable audit record
+-- ============================================================
+template CompletedExchange
+  with
+    proposer: Party
+    responder: Party
+    proposerName: Text
+    responderName: Text
+    proposerGave: Text
+    responderGave: Text
+    description: Optional Text
+    createdAt: Time
+    completedAt: Time
+  where
+    signatory proposer, responder
+
+
+-- ============================================================
+-- HELPER FUNCTIONS
+-- ============================================================
+
+-- Recreate escrowed asset for a party
+recreateAssetFor : Party -> Optional EscrowedCash -> Optional EscrowedRealEstate -> Optional EscrowedPrivateEquity -> Update ()
+recreateAssetFor newOwner cash re pe = do
+  case cash of
+    Some c -> do
+      create CashHolding with
+        owner = newOwner
+        amount = c.amount
+        currency = c.currency
+      return ()
+    None -> case re of
+      Some r -> do
+        create RealEstateToken with
+          owner = newOwner
+          assetId = r.assetId
+          name = r.name
+          location = r.location
+          propertyType = r.propertyType
+          squareFeet = r.squareFeet
+          value = r.value
+        return ()
+      None -> case pe of
+        Some p -> do
+          create PrivateEquityToken with
+            owner = newOwner
+            assetId = p.assetId
+            companyName = p.companyName
+            industry = p.industry
+            ownershipPercentage = p.ownershipPercentage
+            valuation = p.valuation
+          return ()
+        None -> return ()
+
+
+-- Describe escrowed asset for audit record
+describeEscrowed : Optional EscrowedCash -> Optional EscrowedRealEstate -> Optional EscrowedPrivateEquity -> Text
+describeEscrowed cash re pe =
+  case cash of
+    Some c -> "Cash: " <> show c.amount <> " " <> c.currency
+    None -> case re of
+      Some r -> "Real Estate: " <> r.name
+      None -> case pe of
+        Some p -> "Private Equity: " <> p.companyName
+        None -> "Unknown"
+
+
+-- ============================================================
+-- PROPOSAL CREATION HELPERS
+-- 
+-- These templates enable atomic escrow + proposal creation.
+-- The proposer exercises a choice that archives their asset
+-- and creates the proposal in one atomic transaction.
+-- ============================================================
+
+-- Create exchange proposal by escrowing cash
+template ProposeExchangeWithCash
+  with
+    cashToEscrow: ContractId CashHolding
+    proposer: Party
+    responder: Party
+    proposerName: Text
+    responderName: Text
+    requesting: RequestSpec
+    description: Optional Text
+  where
+    signatory proposer
+    
+    choice ExecuteProposal : ContractId EscrowedExchangeProposal
+      controller proposer
+      do
+        now <- getTime
+        cash <- fetch cashToEscrow
+        assert (cash.owner == proposer)
+        
+        -- Archive the cash (escrow it)
+        archive cashToEscrow
+        
+        -- Create proposal with escrowed data
+        create EscrowedExchangeProposal with
+          proposer; responder; proposerName; responderName
+          escrowedCash = Some EscrowedCash with
+            amount = cash.amount
+            currency = cash.currency
+          escrowedRealEstate = None
+          escrowedPrivateEquity = None
+          requesting; description
+          createdAt = now
+
+
+-- Create exchange proposal by escrowing real estate
+template ProposeExchangeWithRealEstate
+  with
+    realEstateToEscrow: ContractId RealEstateToken
+    proposer: Party
+    responder: Party
+    proposerName: Text
+    responderName: Text
+    requesting: RequestSpec
+    description: Optional Text
+  where
+    signatory proposer
+    
+    choice ExecuteProposalRE : ContractId EscrowedExchangeProposal
+      controller proposer
+      do
+        now <- getTime
+        re <- fetch realEstateToEscrow
+        assert (re.owner == proposer)
+        
+        archive realEstateToEscrow
+        
+        create EscrowedExchangeProposal with
+          proposer; responder; proposerName; responderName
+          escrowedCash = None
+          escrowedRealEstate = Some EscrowedRealEstate with
+            assetId = re.assetId
+            name = re.name
+            location = re.location
+            propertyType = re.propertyType
+            squareFeet = re.squareFeet
+            value = re.value
+          escrowedPrivateEquity = None
+          requesting; description
+          createdAt = now
+
+
+-- Create exchange proposal by escrowing private equity
+template ProposeExchangeWithPrivateEquity
+  with
+    privateEquityToEscrow: ContractId PrivateEquityToken
+    proposer: Party
+    responder: Party
+    proposerName: Text
+    responderName: Text
+    requesting: RequestSpec
+    description: Optional Text
+  where
+    signatory proposer
+    
+    choice ExecuteProposalPE : ContractId EscrowedExchangeProposal
+      controller proposer
+      do
+        now <- getTime
+        pe <- fetch privateEquityToEscrow
+        assert (pe.owner == proposer)
+        
+        archive privateEquityToEscrow
+        
+        create EscrowedExchangeProposal with
+          proposer; responder; proposerName; responderName
+          escrowedCash = None
+          escrowedRealEstate = None
+          escrowedPrivateEquity = Some EscrowedPrivateEquity with
+            assetId = pe.assetId
+            companyName = pe.companyName
+            industry = pe.industry
+            ownershipPercentage = pe.ownershipPercentage
+            valuation = pe.valuation
+          requesting; description
+          createdAt = now

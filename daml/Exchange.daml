@@ -1,0 +1,83 @@
+module Exchange where
+
+-- ============================================================
+-- EXCHANGE AGREEMENT CONTRACTS
+-- 
+-- NOTE: These contracts record exchange AGREEMENTS but don't
+-- hold the actual assets. For true atomic execution where
+-- the smart contract controls the assets, see:
+--   - Asset.daml (tokenized assets)
+--   - AtomicExchange.daml (DvP with tokenized assets)
+--
+-- This module is useful for:
+--   - Recording off-chain asset exchanges on the ledger
+--   - Audit trail and compliance
+--   - When assets can't be fully tokenized
+-- ============================================================
+
+-- Offer types
+data OfferType = Cash | RealEstate | PrivateEquity
+  deriving (Eq, Show)
+
+-- What's being exchanged (reference only, not the actual asset)
+data ExchangeOffer = ExchangeOffer
+  with
+    offerType: OfferType
+    cashAmount: Optional Decimal
+    assetId: Optional Text
+    assetName: Optional Text
+    assetValue: Optional Decimal
+  deriving (Eq, Show)
+
+-- Exchange Proposal: Records intent to exchange
+template ExchangeProposal
+  with
+    proposer: Party
+    responder: Party
+    proposerName: Text
+    responderName: Text
+    offering: ExchangeOffer
+    requesting: ExchangeOffer
+    description: Optional Text
+    createdAt: Time
+  where
+    signatory proposer
+    observer responder
+    
+    choice AcceptExchange : ContractId Exchange
+      controller responder
+      do
+        now <- getTime
+        create Exchange with
+          proposer = proposer
+          responder = responder
+          proposerName = proposerName
+          responderName = responderName
+          offering = offering
+          requesting = requesting
+          description = description
+          createdAt = createdAt
+          acceptedAt = now
+    
+    choice CancelExchange : ()
+      controller proposer
+      do return ()
+    
+    choice RejectExchange : ()
+      controller responder
+      do return ()
+
+-- Completed Exchange: Both parties agreed
+template Exchange
+  with
+    proposer: Party
+    responder: Party
+    proposerName: Text
+    responderName: Text
+    offering: ExchangeOffer
+    requesting: ExchangeOffer
+    description: Optional Text
+    createdAt: Time
+    acceptedAt: Time
+  where
+    signatory proposer, responder

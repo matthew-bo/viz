@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Transaction } from './types';
+import { Transaction, ExchangeOffer } from './types';
 import { apiClient } from './api/client';
 import { useToast } from './hooks/useToast';
 import { ToastContainer } from './components/Toast';
@@ -59,17 +59,13 @@ function App() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        console.log('Loading initial data...');
-        
         // Clear any stale filters from previous session
         setSelectedBusiness(null);
         setSelectedRWA(null);
-        console.log('Cleared stale filters from previous session');
         
         // Load parties (always needed)
         const partiesList = await apiClient.getParties();
         setParties(partiesList);
-        console.log('Loaded parties:', partiesList);
         
         // Load transactions and exchanges in parallel
         const allTransactions: Transaction[] = [];
@@ -78,9 +74,8 @@ function App() {
         try {
           const txList = await apiClient.getTransactions({ limit: 100 });
           allTransactions.push(...txList);
-          console.log('Loaded Canton transactions:', txList.length);
-        } catch (txErr) {
-          console.warn('No Canton contracts deployed - this is expected for exchange-only mode');
+        } catch {
+          // No Canton contracts deployed - expected for exchange-only mode
         }
         
         // Load exchanges and convert to transaction format
@@ -89,19 +84,15 @@ function App() {
           const exchanges = await apiClient.getExchanges();
           const exchangeTxs = exchangesToTransactions(exchanges);
           allTransactions.push(...exchangeTxs);
-          console.log('Loaded exchanges:', exchanges.length);
-        } catch (exErr) {
-          console.warn('Failed to load exchanges:', exErr);
+        } catch {
+          // Failed to load exchanges - continue without them
         }
         
-        // Set all transactions (Canton + Exchanges)
         setTransactions(allTransactions);
-        console.log('Total items loaded:', allTransactions.length);
-        
         setError(null);
-      } catch (err: any) {
-        console.error('Failed to load initial data:', err);
-        setError(err.message || 'Failed to connect to backend');
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to connect to backend';
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -112,8 +103,6 @@ function App() {
 
   // Establish SSE connection for real-time updates with reconnection recovery
   useEffect(() => {
-    console.log('Establishing SSE connection...');
-    
     let lastEventTime = Date.now();
     let isReconnecting = false;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -122,52 +111,42 @@ function App() {
 
     // Fallback polling when disconnected
     const startPolling = () => {
-      if (pollInterval) return; // Already polling
+      if (pollInterval) return;
       
-      console.log('Starting fallback polling...');
       pollInterval = setInterval(async () => {
         try {
-          // Poll for missed transactions (using 1 min buffer)
           const [txs, exchanges] = await Promise.all([
             apiClient.getTransactions({ limit: 50 }).catch(() => []),
             apiClient.getExchanges().catch(() => [])
           ]);
           
-          // Update transactions
           txs.forEach(tx => addOrUpdateTransaction(tx));
           
-          // Convert exchanges to transactions
           if (exchanges.length > 0) {
             import('./utils/exchangeAdapter').then(({ exchangesToTransactions }) => {
               const exchangeTxs = exchangesToTransactions(exchanges);
               exchangeTxs.forEach(tx => addOrUpdateTransaction(tx));
             });
           }
-          
-          console.log(`Polling update: ${txs.length} transactions, ${exchanges.length} exchanges`);
-        } catch (err) {
-          console.error('Polling failed:', err);
+        } catch {
+          // Polling failed - will retry on next interval
         }
-      }, 30000); // Poll every 30 seconds
+      }, 30000);
     };
     
     const stopPolling = () => {
       if (pollInterval) {
         clearInterval(pollInterval);
         pollInterval = null;
-        console.log('Stopped fallback polling');
       }
     };
 
     eventSource.onopen = async () => {
-      console.log('✓ SSE connected');
       setConnectionStatus('connected');
       setError(null);
       stopPolling();
       
-      // If reconnecting, fetch missed events
       if (isReconnecting) {
-        console.log('Reconnected - fetching missed events...');
         addActivityLog({
           level: 'info',
           category: 'sse',
@@ -176,21 +155,17 @@ function App() {
         });
         
         try {
-          // Fetch all missed data (using 1 min buffer for safety)
           const [txs, exchanges] = await Promise.all([
             apiClient.getTransactions({ limit: 100 }),
             apiClient.getExchanges()
           ]);
           
-          // Filter to only recent ones (server-side filtering would be better)
           const recentTxs = txs.filter(tx => 
             new Date(tx.recordTime).getTime() > lastEventTime - 60000
           );
           
-          // Update store
           recentTxs.forEach(tx => addOrUpdateTransaction(tx));
           
-          // Convert exchanges
           if (exchanges.length > 0) {
             import('./utils/exchangeAdapter').then(({ exchangesToTransactions }) => {
               const exchangeTxs = exchangesToTransactions(exchanges);
@@ -212,14 +187,12 @@ function App() {
           } else {
             toast.success('Reconnected to Canton Network');
           }
-        } catch (err) {
-          console.error('Failed to recover missed events:', err);
+        } catch {
           toast.info('Reconnected, but some updates may have been missed. Refresh to sync.');
         }
         
         isReconnecting = false;
       } else {
-        // Initial connection
         toast.success('Connected to Canton Network');
         addActivityLog({
           level: 'success',
@@ -233,19 +206,14 @@ function App() {
     eventSource.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log('SSE message received:', message);
-        
-        // Update last event time on every message
         lastEventTime = Date.now();
 
         if (message.type === 'connected') {
-          console.log('SSE connection confirmed');
           return;
         }
 
         if (message.type === 'transaction') {
           const tx = message.data as Transaction;
-          console.log('Transaction update:', tx.contractId, tx.status);
           
           addActivityLog({
             level: 'info',
@@ -259,25 +227,20 @@ function App() {
             },
           });
           
-          // Check if status changed to committed (trigger confetti!)
-          // Note: `transactions` is from closure but this is safe because we're checking
-          // the state BEFORE calling addOrUpdateTransaction, allowing us to detect the transition
+          // Trigger confetti on status change to committed
           const existingTx = transactions.find(t => t.contractId === tx.contractId);
           if (existingTx?.status === 'pending' && tx.status === 'committed') {
             setTriggerConfetti(true);
-            setTimeout(() => setTriggerConfetti(false), 100); // Reset trigger
+            setTimeout(() => setTriggerConfetti(false), 100);
           }
           
-          // Use Zustand's intelligent add/update logic
           addOrUpdateTransaction(tx);
         }
         
-        // Handle exchange events (convert to transaction format for display)
         if (message.type === 'exchange') {
           import('./utils/exchangeAdapter').then(({ exchangeToTransaction }) => {
             const exchange = message.data;
             const tx = exchangeToTransaction(exchange);
-            console.log('Exchange update:', tx.contractId, tx.status);
             
             addActivityLog({
               level: 'info',
@@ -289,10 +252,8 @@ function App() {
               },
             });
             
-            // Add/update as a transaction
             addOrUpdateTransaction(tx);
             
-            // Show toast and confetti
             if (exchange.status === 'pending') {
               toast.success('New exchange proposal created!');
             } else if (exchange.status === 'accepted') {
@@ -302,13 +263,12 @@ function App() {
             }
           });
         }
-      } catch (err) {
-        console.error('Failed to parse SSE message:', err);
+      } catch {
+        // Failed to parse SSE message
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error('✗ SSE error:', err);
+    eventSource.onerror = () => {
       setConnectionStatus('disconnected');
       isReconnecting = true;
       
@@ -316,24 +276,17 @@ function App() {
         level: 'warning',
         category: 'sse',
         message: 'Connection lost - attempting to reconnect',
-        details: { error: String(err) },
       });
       
       toast.error('Connection lost. Attempting to reconnect...');
-      
-      // Start polling as fallback
       startPolling();
-      
-      // EventSource automatically reconnects
     };
 
-    // Cleanup on unmount
     return () => {
-      console.log('Closing SSE connection');
       stopPolling();
       eventSource.close();
     };
-  }, []); // Empty deps - SSE should only connect once on mount
+  }, []);
 
   // Register keyboard shortcuts
   useEffect(() => {
@@ -388,16 +341,15 @@ function App() {
     });
   }, []); // Register shortcuts only once on mount - don't include registerShortcut to avoid infinite loop
 
-  // Handle form submission (with RWA fields)
+  // Handle form submission
   const handleExchangeSubmit = async (data: {
     fromParty: string;
     toParty: string;
-    offering: any;
-    requesting: any;
+    offering: ExchangeOffer;
+    requesting: ExchangeOffer;
     description?: string;
   }) => {
     try {
-      console.log('Submitting exchange:', data);
       addActivityLog({
         level: 'info',
         category: 'user',
@@ -411,13 +363,9 @@ function App() {
       
       const exchange = await apiClient.createExchange(data);
       toast.success('Exchange proposal created successfully');
-      console.log('Exchange created:', exchange);
       
-      // Convert exchange to transaction format and auto-select to show timeline
       const transactionView = exchangeToTransaction(exchange);
       setSelectedTransaction(transactionView);
-      
-      // Add to store (SSE will also update, but this provides immediate feedback)
       addOrUpdateTransaction(transactionView);
       
       addActivityLog({
@@ -426,10 +374,10 @@ function App() {
         message: 'Exchange created and timeline opened',
         details: { exchangeId: exchange.id },
       });
-    } catch (err: any) {
-      console.error('Failed to create exchange:', err);
-      toast.error(err?.message || 'Failed to create exchange');
-      throw err; // Re-throw for CreateExchangeModal to handle
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create exchange';
+      toast.error(message);
+      throw err;
     }
   };
 

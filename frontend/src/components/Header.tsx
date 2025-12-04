@@ -62,14 +62,12 @@ function Header({ isConnected, onCreateClick }: Props) {
   };
 
   const handleDownloadJSON = () => {
-    const count = exportLogsAsJSON();
-    console.log(`Downloaded ${count} log entries as JSON`);
+    exportLogsAsJSON();
     setShowHealthDropdown(false);
   };
 
   const handleDownloadCSV = () => {
-    const count = exportLogsAsCSV();
-    console.log(`Downloaded ${count} log entries as CSV`);
+    exportLogsAsCSV();
     setShowHealthDropdown(false);
   };
 

@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { Transaction, Party, Asset } from '../types';
 
 type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
-type ViewMode = 'grid' | 'list' | 'flow';
+type ViewMode = 'list' | 'metrics';
 
 export interface AppStore {
   // Transaction data
@@ -59,7 +59,7 @@ export const useAppStore = create<AppStore>()(
       parties: [],
       selectedBusiness: null,
       selectedRWA: null,
-      activeView: 'grid',
+      activeView: 'list',
       selectedTransaction: null,
       selectedAsset: null,
       connectionStatus: 'connecting',

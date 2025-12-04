@@ -61,11 +61,55 @@ export const MainContent: React.FC = () => {
         successMessage: `✅ ${isExchange ? 'Exchange' : 'Transaction'} accepted! Inventories will update momentarily...`,
         errorMessage: `Failed to accept ${isExchange ? 'exchange' : 'transaction'}`,
         onSuccess: () => {
-          console.log('✅ Exchange/Transaction accepted, SSE will trigger inventory refresh');
-          // Clear selection after 2 seconds to show the updated transaction in the list
           setTimeout(() => {
             setSelectedTransaction(null);
           }, 2000);
+        }
+      }
+    );
+  };
+
+  const handleCancel = async () => {
+    if (!selectedTransaction) return;
+
+    const contractId = selectedTransaction.contractId;
+
+    await executeAction(
+      contractId,
+      async () => {
+        await apiClient.cancelExchange(contractId, selectedTransaction.payload.sender);
+      },
+      {
+        loadingMessage: 'Cancelling exchange...',
+        successMessage: '✅ Exchange cancelled! Assets released from escrow.',
+        errorMessage: 'Failed to cancel exchange',
+        onSuccess: () => {
+          setTimeout(() => {
+            setSelectedTransaction(null);
+          }, 1500);
+        }
+      }
+    );
+  };
+
+  const handleReject = async () => {
+    if (!selectedTransaction) return;
+
+    const contractId = selectedTransaction.contractId;
+
+    await executeAction(
+      contractId,
+      async () => {
+        await apiClient.rejectExchange(contractId, selectedTransaction.payload.receiver);
+      },
+      {
+        loadingMessage: 'Rejecting exchange...',
+        successMessage: '✅ Exchange rejected! Assets returned to proposer.',
+        errorMessage: 'Failed to reject exchange',
+        onSuccess: () => {
+          setTimeout(() => {
+            setSelectedTransaction(null);
+          }, 1500);
         }
       }
     );
@@ -151,7 +195,9 @@ export const MainContent: React.FC = () => {
               <TransactionTimeline 
                 transaction={selectedTransaction} 
                 onAccept={selectedTransaction.status === 'pending' ? handleAccept : undefined}
-                isAccepting={isProcessing(selectedTransaction.contractId)}
+                onCancel={selectedTransaction.status === 'pending' && isExchangeTransaction(selectedTransaction) ? handleCancel : undefined}
+                onReject={selectedTransaction.status === 'pending' && isExchangeTransaction(selectedTransaction) ? handleReject : undefined}
+                isProcessing={isProcessing(selectedTransaction.contractId)}
               />
             </motion.div>
           ) : viewMode === 'list' ? (

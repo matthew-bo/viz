@@ -44,16 +44,9 @@ function ActivityLog({ maxEntries = DEFAULT_MAX_ENTRIES }: Props) {
 
     setLogs((prev) => {
       const updated = [newEntry, ...prev];
-      
-      // Implement circular buffer - keep only last maxEntries
       const trimmed = updated.slice(0, maxEntries);
       
-      // Warn if approaching limit (only once)
       if (!hasShownWarning && trimmed.length >= WARNING_THRESHOLD) {
-        console.warn(
-          `Activity log approaching limit: ${trimmed.length}/${maxEntries} entries. ` +
-          `Oldest entries will be automatically removed.`
-        );
         setHasShownWarning(true);
       }
       

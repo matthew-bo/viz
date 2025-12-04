@@ -41,19 +41,14 @@ function TransactionCard({ transaction, selectedParty, onAccept }: Props) {
     transaction.status === 'pending' &&
     selectedParty === transaction.receiverDisplayName;
 
-  // Handle accept click
   const handleAccept = async () => {
     if (!canAccept) return;
 
     setIsAccepting(true);
     try {
       await onAccept(transaction.contractId, transaction.receiverDisplayName);
-    } catch (error: any) {
-      console.error('Failed to accept:', error);
-      // Show error in UI instead of alert - more professional
-      const errorMsg = error?.message || 'Failed to accept transaction. Please try again.';
-      console.error('Accept error:', errorMsg);
-      // TODO: Add toast notification here
+    } catch {
+      // Error handled by parent component
     } finally {
       setIsAccepting(false);
     }

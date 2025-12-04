@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Clock, CheckCircle, ArrowRight, ArrowLeftRight, User, Loader2 } from 'lucide-react';
+import { Clock, CheckCircle, ArrowRight, ArrowLeftRight, User, Loader2, XCircle, Ban } from 'lucide-react';
 import { format } from 'date-fns';
 import { Transaction } from '../types';
 import { useAppStore } from '../store/useAppStore';
@@ -9,7 +9,9 @@ import { isExchangeTransaction, getExchangeDetails } from '../utils/exchangeAdap
 interface TransactionTimelineProps {
   transaction: Transaction;
   onAccept?: () => void;
-  isAccepting?: boolean;
+  onCancel?: () => void;
+  onReject?: () => void;
+  isProcessing?: boolean;
 }
 
 /**
@@ -24,7 +26,9 @@ interface TransactionTimelineProps {
 export const TransactionTimeline: React.FC<TransactionTimelineProps> = ({
   transaction,
   onAccept,
-  isAccepting = false
+  onCancel,
+  onReject,
+  isProcessing = false
 }) => {
   const { parties } = useAppStore();
   const isPending = transaction.status === 'pending';
@@ -33,17 +37,6 @@ export const TransactionTimeline: React.FC<TransactionTimelineProps> = ({
   // Check if this is a two-sided exchange
   const isExchange = isExchangeTransaction(transaction);
   const exchangeDetails = isExchange ? getExchangeDetails(transaction) : null;
-  
-  // Debug logging (only once on mount or when transaction changes)
-  useEffect(() => {
-    console.log('TransactionTimeline Debug:', {
-      contractId: transaction.contractId,
-      templateId: transaction.templateId,
-      isExchange,
-      exchangeDetails,
-      rwaDetails: transaction.payload.rwaDetails
-    });
-  }, [transaction.contractId]); // Only log when transaction ID changes
 
   const getSenderColor = () => {
     return parties.find(p => p.displayName === transaction.senderDisplayName)?.color || '#3B82F6';
@@ -330,32 +323,87 @@ export const TransactionTimeline: React.FC<TransactionTimelineProps> = ({
           {isPending ? (
             <div className="space-y-4">
               <p className="text-gray-700">
-                <strong>{transaction.receiverDisplayName}</strong> needs to accept this payment request 
+                <strong>{transaction.receiverDisplayName}</strong> needs to accept this {isExchange ? 'exchange' : 'payment request'} 
                 to commit it to the Canton blockchain.
               </p>
-              {onAccept && (
-                <button
-                  onClick={onAccept}
-                  disabled={isAccepting}
-                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 
-                           hover:to-green-700 text-white font-bold py-3 px-6 rounded-xl 
-                           shadow-lg hover:shadow-xl transition-all transform hover:scale-105
-                           flex items-center justify-center gap-2
-                           disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                  {isAccepting ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Accepting...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-5 h-5" />
-                      Accept Transaction
-                    </>
-                  )}
-                </button>
-              )}
+              
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                {/* Accept Button */}
+                {onAccept && (
+                  <button
+                    onClick={onAccept}
+                    disabled={isProcessing}
+                    className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 
+                             hover:to-green-700 text-white font-bold py-3 px-6 rounded-xl 
+                             shadow-lg hover:shadow-xl transition-all transform hover:scale-105
+                             flex items-center justify-center gap-2
+                             disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-5 h-5" />
+                        Accept {isExchange ? 'Exchange' : 'Transaction'}
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Cancel Button (for proposer) */}
+                {onCancel && (
+                  <button
+                    onClick={onCancel}
+                    disabled={isProcessing}
+                    className="w-full bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 
+                             hover:to-gray-700 text-white font-bold py-3 px-6 rounded-xl 
+                             shadow-lg hover:shadow-xl transition-all
+                             flex items-center justify-center gap-2
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-5 h-5" />
+                        Cancel Exchange
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Reject Button (for responder) */}
+                {onReject && (
+                  <button
+                    onClick={onReject}
+                    disabled={isProcessing}
+                    className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 
+                             hover:to-red-700 text-white font-bold py-3 px-6 rounded-xl 
+                             shadow-lg hover:shadow-xl transition-all
+                             flex items-center justify-center gap-2
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Ban className="w-5 h-5" />
+                        Reject Exchange
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-gray-700">

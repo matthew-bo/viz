@@ -1,0 +1,105 @@
+module Asset where
+
+-- ============================================================
+-- TOKENIZED ASSETS
+-- 
+-- Each asset is a DAML contract representing ownership.
+-- Assets can be transferred or escrowed for atomic exchanges.
+-- ============================================================
+
+-- Escrowed data types (used by Exchange module)
+data EscrowedCash = EscrowedCash
+  with
+    amount: Decimal
+    currency: Text
+  deriving (Eq, Show)
+
+data EscrowedRealEstate = EscrowedRealEstate
+  with
+    assetId: Text
+    name: Text
+    location: Text
+    propertyType: Text
+    squareFeet: Int
+    value: Decimal
+  deriving (Eq, Show)
+
+data EscrowedPrivateEquity = EscrowedPrivateEquity
+  with
+    assetId: Text
+    companyName: Text
+    industry: Text
+    ownershipPercentage: Decimal
+    valuation: Decimal
+  deriving (Eq, Show)
+
+-- What is being requested in an exchange
+data RequestSpec = RequestSpec
+  with
+    requestType: Text           -- "cash" | "real_estate" | "private_equity"
+    amount: Optional Decimal
+    assetId: Optional Text
+  deriving (Eq, Show)
+
+
+-- ============================================================
+-- CASH HOLDING
+-- ============================================================
+template CashHolding
+  with
+    owner: Party
+    amount: Decimal
+    currency: Text
+  where
+    signatory owner
+    ensure amount > 0.0
+    
+    -- Transfer entire holding
+    choice TransferCash : ContractId CashHolding
+      with recipient: Party
+      controller owner
+      do
+        create this with owner = recipient
+
+
+-- ============================================================
+-- REAL ESTATE TOKEN
+-- ============================================================
+template RealEstateToken
+  with
+    owner: Party
+    assetId: Text
+    name: Text
+    location: Text
+    propertyType: Text
+    squareFeet: Int
+    value: Decimal
+  where
+    signatory owner
+    
+    choice TransferRealEstate : ContractId RealEstateToken
+      with newOwner: Party
+      controller owner
+      do
+        create this with owner = newOwner
+
+
+-- ============================================================
+-- PRIVATE EQUITY TOKEN
+-- ============================================================
+template PrivateEquityToken
+  with
+    owner: Party
+    assetId: Text
+    companyName: Text
+    industry: Text
+    ownershipPercentage: Decimal
+    valuation: Decimal
+  where
+    signatory owner
+    
+    choice TransferPrivateEquity : ContractId PrivateEquityToken
+      with newOwner: Party
+      controller owner
+      do
+        create this with owner = newOwner

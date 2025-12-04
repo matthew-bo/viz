@@ -15,7 +15,7 @@ describe('useAppStore', () => {
       parties: [],
       selectedBusiness: null,
       selectedRWA: null,
-      activeView: 'grid',
+      activeView: 'list',
       selectedTransaction: null,
       selectedAsset: null,
       connectionStatus: 'connecting',
@@ -304,8 +304,8 @@ describe('useAppStore', () => {
       useAppStore.getState().setActiveView('list');
       expect(useAppStore.getState().activeView).toBe('list');
       
-      useAppStore.getState().setActiveView('flow');
-      expect(useAppStore.getState().activeView).toBe('flow');
+      useAppStore.getState().setActiveView('metrics');
+      expect(useAppStore.getState().activeView).toBe('metrics');
     });
 
     it('should set selected transaction', () => {
@@ -325,4 +325,8 @@ describe('useAppStore', () => {
     });
   });
 });
+
+
+
+
 

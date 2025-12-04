@@ -1,4 +1,4 @@
-import { Transaction, Party, ExchangeProposal, ExchangeOffer, PartyInventory, Asset } from '../types';
+import { Transaction, Party, ExchangeProposal, ExchangeOffer, PartyInventory, Asset, OwnershipHistory } from '../types';
 import { fetchWithTimeout, getErrorMessage } from '../utils/fetchWithTimeout';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -337,6 +337,60 @@ export const apiClient = {
   },
 
   /**
+   * Cancel exchange (proposer only)
+   */
+  async cancelExchange(exchangeId: string, requestingParty: string): Promise<{ success: boolean }> {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE}/api/exchanges/${exchangeId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestingParty })
+      }, DEFAULT_TIMEOUT);
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to cancel exchange' }));
+        logApiCall('POST', `/api/exchanges/${exchangeId}/cancel`, false, { error: error.error });
+        throw new Error(error.error || 'Failed to cancel exchange');
+      }
+      
+      const result = await response.json();
+      logApiCall('POST', `/api/exchanges/${exchangeId}/cancel`, true, { exchangeId });
+      return result;
+    } catch (err) {
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Cancel exchange');
+      logApiCall('POST', `/api/exchanges/${exchangeId}/cancel`, false, { error: message });
+      throw new Error(message);
+    }
+  },
+
+  /**
+   * Reject exchange (responder only)
+   */
+  async rejectExchange(exchangeId: string, rejectingParty: string): Promise<{ success: boolean }> {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE}/api/exchanges/${exchangeId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejectingParty })
+      }, DEFAULT_TIMEOUT);
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to reject exchange' }));
+        logApiCall('POST', `/api/exchanges/${exchangeId}/reject`, false, { error: error.error });
+        throw new Error(error.error || 'Failed to reject exchange');
+      }
+      
+      const result = await response.json();
+      logApiCall('POST', `/api/exchanges/${exchangeId}/reject`, true, { exchangeId });
+      return result;
+    } catch (err) {
+      const message = getErrorMessage(err instanceof Error ? err : new Error('Unknown error'), 'Reject exchange');
+      logApiCall('POST', `/api/exchanges/${exchangeId}/reject`, false, { error: message });
+      throw new Error(message);
+    }
+  },
+
+  /**
    * Get all exchanges
    */
   async getExchanges(partyId?: string): Promise<ExchangeProposal[]> {
@@ -387,7 +441,7 @@ export const apiClient = {
   /**
    * Get asset history
    */
-  async getAssetHistory(assetId: string): Promise<any[]> {
+  async getAssetHistory(assetId: string): Promise<OwnershipHistory[]> {
     try {
       const response = await fetchWithTimeout(`${API_BASE}/api/assets/${assetId}/history`, { method: 'GET' }, DEFAULT_TIMEOUT);
       

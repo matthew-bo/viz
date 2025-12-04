@@ -16,16 +16,13 @@ function TransactionGrid() {
   
   const transactions = getFilteredTransactions();
 
-  // Handle accept button click
   const handleAccept = async (contractId: string, receiver: string) => {
     try {
-      console.log('Accepting transaction:', contractId, 'as', receiver);
       await apiClient.acceptContract(contractId, receiver);
       toast.success('Payment accepted successfully');
-      // SSE will push the update
-    } catch (err: any) {
-      console.error('Failed to accept:', err);
-      toast.error(err?.message || 'Failed to accept payment');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to accept payment';
+      toast.error(message);
       throw err;
     }
   };

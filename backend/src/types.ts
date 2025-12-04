@@ -41,3 +41,28 @@ export interface PartyConfig {
   ledgerApiUrl: string;         // "http://canton-participant1:5011"
 }
 
+// Exchange offer structure
+export interface ExchangeOfferData {
+  type: 'cash' | 'real_estate' | 'private_equity';
+  cashAmount?: number;
+  assetId?: string;
+  assetName?: string;
+  assetValue?: number;
+}
+
+// Exchange transaction (from DAML ExchangeProposal/Exchange contracts)
+export interface ExchangeTransaction {
+  id: string;
+  contractId: string;
+  fromParty: string;
+  fromPartyName: string;
+  toParty: string;
+  toPartyName: string;
+  offering: ExchangeOfferData;
+  requesting: ExchangeOfferData;
+  description?: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  createdAt: string;
+  acceptedAt?: string;
+}
+

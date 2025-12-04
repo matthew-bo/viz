@@ -36,9 +36,7 @@ export function useTransactionAction() {
       onError?: (error: Error) => void;
     }
   ): Promise<T | null> => {
-    // Prevent duplicate submissions
     if (processingIds.has(id)) {
-      console.warn(`Action already in progress for ${id}`);
       return null;
     }
 

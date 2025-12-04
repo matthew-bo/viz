@@ -14,28 +14,8 @@ const requiredEnvVars = [
 
 const missingEnvVars = requiredEnvVars.filter(key => !process.env[key]);
 if (missingEnvVars.length > 0) {
-  console.error('');
-  console.error('═══════════════════════════════════════════════════════════');
-  console.error('  ❌ CONFIGURATION ERROR: Missing Environment Variables');
-  console.error('═══════════════════════════════════════════════════════════');
-  console.error('');
-  console.error('The following required environment variables are not set:');
-  console.error('');
-  missingEnvVars.forEach(key => {
-    console.error(`  - ${key}`);
-  });
-  console.error('');
-  console.error('Please ensure your .env file is properly configured:');
-  console.error('  1. Check if backend/.env exists');
-  console.error('  2. Copy from backend/env.template if needed');
-  console.error('  3. Fill in the real Canton party IDs from:');
-  console.error('     infrastructure/canton/party-ids.json');
-  console.error('');
-  console.error('Run this command to initialize Canton and get party IDs:');
-  console.error('  .\\infrastructure\\init-canton-final.ps1');
-  console.error('');
-  console.error('═══════════════════════════════════════════════════════════');
-  console.error('');
+  console.error('Missing required environment variables:', missingEnvVars.join(', '));
+  console.error('Copy backend/env.template to backend/.env and configure it.');
   process.exit(1);
 }
 
@@ -46,22 +26,18 @@ import partiesRouter from './routes/parties';
 import eventsRouter from './routes/events';
 import adminRouter from './routes/admin';
 import exchangesRouter from './routes/exchanges';
+import atomicExchangesRouter from './routes/atomicExchanges';
 import inventoryRouter from './routes/inventory';
 import assetsRouter from './routes/assets';
 import { config } from './config';
 import { ledgerClient } from './canton';
 import { seedAssets } from './scripts/seedAssets';
+import { initializeTokenizedAssetsIfNeeded } from './services/tokenizedAssetInitializer';
 import inventoryService from './services/inventoryService';
 import exchangeService from './services/exchangeService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-console.log('');
-console.log('═══════════════════════════════════════════════════════════');
-console.log('  Canton Privacy Blockchain Visualizer - Backend Server');
-console.log('═══════════════════════════════════════════════════════════');
-console.log('');
 
 // CORS configuration
 const corsOptions = {
@@ -74,43 +50,35 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: config.security.requestSizeLimit }));
 
-// Request logging middleware
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.path}`);
-  next();
-});
-
-// Seed assets on startup
-console.log('Initializing asset registry...');
+// Initialize assets (in-memory)
 const parties = ledgerClient.getAllParties().map(p => ({
   partyId: p.partyId,
   displayName: p.displayName
 }));
 seedAssets(parties);
 
+// Try to tokenize assets on Canton (async, non-blocking)
+initializeTokenizedAssetsIfNeeded().then(result => {
+  if (result) {
+    if (result.success) {
+      console.log(`✓ Tokenized assets on Canton: ${result.cashHoldings} cash, ${result.realEstateTokens} RE, ${result.privateEquityTokens} PE`);
+    } else {
+      console.log(`⚠ Partial tokenization: ${result.errors.length} errors`);
+    }
+  }
+}).catch(() => {
+  // Canton not available - using in-memory assets only
+});
+
 // Routes
-console.log('Mounting API routes...');
 app.use('/api/contracts', contractsRouter);
-console.log('✓ /api/contracts');
-
 app.use('/api/parties', partiesRouter);
-console.log('✓ /api/parties');
-
 app.use('/api/events', eventsRouter);
-console.log('✓ /api/events');
-
 app.use('/api/admin', adminRouter);
-console.log('✓ /api/admin');
-
 app.use('/api/exchanges', exchangesRouter);
-console.log('✓ /api/exchanges');
-
+app.use('/api/atomic', atomicExchangesRouter);  // Tokenized atomic exchanges
 app.use('/api/inventory', inventoryRouter);
-console.log('✓ /api/inventory');
-
 app.use('/api/assets', assetsRouter);
-console.log('✓ /api/assets');
 
 // Enhanced health check endpoint - checks all critical services
 app.get('/health', async (req, res) => {
@@ -170,7 +138,6 @@ app.get('/health', async (req, res) => {
   
   res.status(httpStatus).json(health);
 });
-console.log('✓ /health (enhanced with service checks)');
 
 // 404 handler
 app.use((req, res) => {
@@ -195,33 +162,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Start server
 app.listen(PORT, () => {
-  console.log('');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log(`✓ Backend server running on port ${PORT}`);
-  console.log(`✓ Health check: http://localhost:${PORT}/health`);
-  console.log(`✓ API endpoints: http://localhost:${PORT}/api`);
-  console.log(`✓ SSE endpoint: http://localhost:${PORT}/api/events`);
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('');
-  console.log('Environment:');
-  console.log(`  NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`  PORT: ${PORT}`);
-  console.log(`  Participant1: ${process.env.PARTICIPANT1_LEDGER_API}`);
-  console.log(`  Participant2: ${process.env.PARTICIPANT2_LEDGER_API}`);
-  console.log(`  Participant3: ${process.env.PARTICIPANT3_LEDGER_API}`);
-  console.log('');
-  console.log('Ready to accept requests!');
-  console.log('');
+  console.log(`Server running on port ${PORT}`);
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  process.exit(0);
-});
+process.on('SIGTERM', () => process.exit(0));
+process.on('SIGINT', () => process.exit(0));
 
