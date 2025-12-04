@@ -67,19 +67,19 @@ export class RawCantonClient {
         displayName: 'TechBank',
         partyId: process.env.TECHBANK_PARTY_ID!,
         ledgerApiUrl: process.env.PARTICIPANT1_LEDGER_API!,
-        ledgerId: 'participant1'
+        ledgerId: 'participant1'  // Each participant has its own ledger ID
       },
       {
         displayName: 'GlobalCorp',
         partyId: process.env.GLOBALCORP_PARTY_ID!,
         ledgerApiUrl: process.env.PARTICIPANT2_LEDGER_API!,
-        ledgerId: 'participant1'
+        ledgerId: 'participant2'  // Match participant2's ledger ID
       },
       {
         displayName: 'RetailFinance',
         partyId: process.env.RETAILFINANCE_PARTY_ID!,
         ledgerApiUrl: process.env.PARTICIPANT3_LEDGER_API!,
-        ledgerId: 'participant1'
+        ledgerId: 'participant3'  // Match participant3's ledger ID
       }
     ];
 
