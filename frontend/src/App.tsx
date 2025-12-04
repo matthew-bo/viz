@@ -18,7 +18,8 @@ import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
 import { ConfettiEffect } from './components/ConfettiEffect';
 import { exchangeToTransaction } from './utils/exchangeAdapter';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Use relative URLs in production (nginx proxies to backend)
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 /**
  * Main App Component - Redesigned with Resizable Layout & Zustand

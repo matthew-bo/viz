@@ -2,9 +2,6 @@
 # Stage 1: Builder
 FROM node:20-alpine AS builder
 
-# Build argument for API URL (can be overridden at build time)
-ARG VITE_API_URL=http://backend:3001
-
 WORKDIR /app
 
 # Copy package files
@@ -16,10 +13,7 @@ RUN npm ci
 # Copy source code and config
 COPY . .
 
-# Create .env file with the API URL for Vite build
-RUN echo "VITE_API_URL=${VITE_API_URL}" > .env
-
-# Build for production (Vite will use the .env file)
+# Build for production (uses relative URLs, nginx proxies to backend)
 RUN npm run build
 
 # Stage 2: Production with Nginx

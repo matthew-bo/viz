@@ -1,7 +1,9 @@
 import { Transaction, Party, ExchangeProposal, ExchangeOffer, PartyInventory, Asset, OwnershipHistory } from '../types';
 import { fetchWithTimeout, getErrorMessage } from '../utils/fetchWithTimeout';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Use relative URLs in production (nginx proxies to backend)
+// Use localhost:3001 for local development
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 const DEFAULT_TIMEOUT = 15000; // 15 seconds default timeout
 
 /**
