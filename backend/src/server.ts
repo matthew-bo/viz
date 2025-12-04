@@ -32,7 +32,8 @@ import assetsRouter from './routes/assets';
 import { config } from './config';
 import { ledgerClient } from './canton';
 import { seedAssets } from './scripts/seedAssets';
-import { initializeTokenizedAssetsIfNeeded } from './services/tokenizedAssetInitializer';
+import { initializeTokenizedAssets } from './services/tokenizedAssetInitializer';
+import { cantonAssetRegistry } from './services/cantonAssetRegistry';
 import inventoryService from './services/inventoryService';
 import exchangeService from './services/exchangeService';
 
@@ -57,17 +58,24 @@ const parties = ledgerClient.getAllParties().map(p => ({
 }));
 seedAssets(parties);
 
-// Try to tokenize assets on Canton (async, non-blocking)
-initializeTokenizedAssetsIfNeeded().then(result => {
-  if (result) {
+// Initialize tokenized assets on Canton (async, non-blocking)
+// This creates DAML contracts for all assets and registers the mappings
+initializeTokenizedAssets().then(result => {
+  if (result.cantonAvailable) {
     if (result.success) {
-      console.log(`✓ Tokenized assets on Canton: ${result.cashHoldings} cash, ${result.realEstateTokens} RE, ${result.privateEquityTokens} PE`);
+      console.log(`✓ Canton tokenization complete: ${result.cashHoldings} cash, ${result.realEstateTokens} RE, ${result.privateEquityTokens} PE`);
+      console.log('  → Exchanges will use TRUE blockchain escrow');
     } else {
-      console.log(`⚠ Partial tokenization: ${result.errors.length} errors`);
+      console.log(`⚠ Partial Canton tokenization: ${result.errors.length} errors`);
+      result.errors.forEach(e => console.log(`    - ${e}`));
     }
+  } else {
+    console.log('ℹ Canton not available - using in-memory mode');
+    console.log('  → Exchanges will use simulated escrow');
   }
-}).catch(() => {
-  // Canton not available - using in-memory assets only
+}).catch((err) => {
+  console.log(`⚠ Canton initialization failed: ${err.message || err}`);
+  console.log('  → Falling back to in-memory mode');
 });
 
 // Routes
@@ -97,8 +105,12 @@ app.get('/health', async (req, res) => {
   // Check Canton ledger connectivity
   try {
     const parties = await ledgerClient.getAllParties();
+    const cantonMode = cantonAssetRegistry.isCantonAvailable() ? 'blockchain escrow' : 'in-memory';
     if (parties && parties.length > 0) {
-      health.services.canton = { status: 'healthy', message: `${parties.length} participants active` };
+      health.services.canton = { 
+        status: 'healthy', 
+        message: `${parties.length} participants (${cantonMode})` 
+      };
     } else {
       health.services.canton = { status: 'degraded', message: 'No participants found' };
       health.status = 'degraded';

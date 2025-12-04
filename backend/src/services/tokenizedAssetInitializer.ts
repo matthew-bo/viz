@@ -2,14 +2,10 @@
  * Tokenized Asset Initializer
  * 
  * Creates tokenized assets on the Canton ledger matching the in-memory assets.
- * This is called after seedAssets to create DAML contracts for the same assets.
- * 
- * When Canton is available, assets exist both:
- * - In-memory (for fallback/development)
- * - On Canton (for production/blockchain guarantee)
+ * Uses CantonAssetRegistry to maintain the mapping between asset IDs and contract IDs.
  */
 
-import { tokenizedAssetClient } from '../canton/tokenized-asset-client';
+import { cantonAssetRegistry } from './cantonAssetRegistry';
 
 // Same asset data as seedAssets.ts - must stay in sync
 const ASSET_DATA = {
@@ -51,97 +47,47 @@ export interface TokenizationResult {
   realEstateTokens: number;
   privateEquityTokens: number;
   errors: string[];
+  cantonAvailable: boolean;
 }
 
 /**
- * Create tokenized assets on Canton matching the in-memory assets
- * Silent failure - logs errors but doesn't throw
+ * Initialize tokenized assets using the Canton Asset Registry
  */
-export async function tokenizeExistingAssets(): Promise<TokenizationResult> {
-  const result: TokenizationResult = {
-    success: true,
-    cashHoldings: 0,
-    realEstateTokens: 0,
-    privateEquityTokens: 0,
-    errors: []
+export async function initializeTokenizedAssets(): Promise<TokenizationResult> {
+  console.log('🔗 Initializing tokenized assets on Canton...');
+  
+  const result = await cantonAssetRegistry.initialize(ASSET_DATA);
+  
+  const summary: TokenizationResult = {
+    success: result.success,
+    cashHoldings: ASSET_DATA.cash.length,
+    realEstateTokens: ASSET_DATA.realEstate.length,
+    privateEquityTokens: ASSET_DATA.privateEquity.length,
+    errors: result.errors,
+    cantonAvailable: cantonAssetRegistry.isCantonAvailable()
   };
 
-  // Tokenize cash holdings
-  for (const cash of ASSET_DATA.cash) {
-    try {
-      await tokenizedAssetClient.createCashHolding(cash.owner, cash.amount, 'USD');
-      result.cashHoldings++;
-    } catch (error) {
-      result.errors.push(`Cash ${cash.owner}: ${error}`);
-    }
+  if (result.success) {
+    console.log(`✓ Canton tokenization complete: ${result.created} assets created`);
+  } else if (result.errors.includes('Canton not available')) {
+    console.log('ℹ Running in-memory only mode (Canton not available)');
+  } else {
+    console.log(`⚠ Partial tokenization: ${result.errors.length} errors`);
   }
 
-  // Tokenize real estate
-  for (const re of ASSET_DATA.realEstate) {
-    try {
-      await tokenizedAssetClient.createRealEstateToken(
-        re.owner,
-        re.assetId,
-        re.name,
-        re.location,
-        re.propertyType,
-        re.squareFeet,
-        re.value
-      );
-      result.realEstateTokens++;
-    } catch (error) {
-      result.errors.push(`RE ${re.name}: ${error}`);
-    }
-  }
-
-  // Tokenize private equity
-  for (const pe of ASSET_DATA.privateEquity) {
-    try {
-      await tokenizedAssetClient.createPrivateEquityToken(
-        pe.owner,
-        pe.assetId,
-        pe.companyName,
-        pe.industry,
-        pe.ownershipPercentage,
-        pe.valuation
-      );
-      result.privateEquityTokens++;
-    } catch (error) {
-      result.errors.push(`PE ${pe.companyName}: ${error}`);
-    }
-  }
-
-  result.success = result.errors.length === 0;
-  return result;
+  return summary;
 }
 
 /**
  * Check if tokenized assets already exist on Canton
  */
 export async function checkTokenizedAssetsExist(): Promise<boolean> {
-  try {
-    const inventory = await tokenizedAssetClient.getTokenizedInventory('TechBank');
-    return inventory.cash.length > 0 || 
-           inventory.realEstate.length > 0 || 
-           inventory.privateEquity.length > 0;
-  } catch {
-    return false;
-  }
+  return cantonAssetRegistry.isInitialized() && cantonAssetRegistry.isCantonAvailable();
 }
 
 /**
- * Initialize tokenized assets only if they don't exist
- * Called after seedAssets in server startup
+ * Get the Canton Asset Registry instance
  */
-export async function initializeTokenizedAssetsIfNeeded(): Promise<TokenizationResult | null> {
-  try {
-    const exists = await checkTokenizedAssetsExist();
-    if (exists) {
-      return null; // Already initialized
-    }
-    return await tokenizeExistingAssets();
-  } catch {
-    // Canton not available - that's OK, we'll use in-memory
-    return null;
-  }
+export function getCantonRegistry() {
+  return cantonAssetRegistry;
 }
