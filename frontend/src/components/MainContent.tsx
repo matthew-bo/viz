@@ -198,7 +198,7 @@ export const MainContent: React.FC = () => {
                   selectedTransaction.status === 'pending' && 
                   (
                     !isExchangeTransaction(selectedTransaction) || 
-                    selectedBusiness === selectedTransaction.payload.receiver
+                    selectedBusiness === selectedTransaction.receiverDisplayName
                   )
                     ? handleAccept 
                     : undefined
@@ -206,14 +206,14 @@ export const MainContent: React.FC = () => {
                 onCancel={
                   selectedTransaction.status === 'pending' && 
                   isExchangeTransaction(selectedTransaction) && 
-                  selectedBusiness === selectedTransaction.payload.sender
+                  selectedBusiness === selectedTransaction.senderDisplayName
                     ? handleCancel 
                     : undefined
                 }
                 onReject={
                   selectedTransaction.status === 'pending' && 
                   isExchangeTransaction(selectedTransaction) && 
-                  selectedBusiness === selectedTransaction.payload.receiver
+                  selectedBusiness === selectedTransaction.receiverDisplayName
                     ? handleReject 
                     : undefined
                 }
