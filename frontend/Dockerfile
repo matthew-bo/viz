@@ -28,9 +28,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Expose port
 EXPOSE 80
 
-# Health check
+# Health check (uses nginx health endpoint, not backend)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
+  CMD wget --quiet --tries=1 --spider http://localhost/nginx-health || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
